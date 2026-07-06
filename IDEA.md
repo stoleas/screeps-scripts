@@ -121,6 +121,11 @@ The current `main.js` + `role.*.js` is a strict superset of the vanilla tutorial
 **Shipped:** When the deliver-target list is empty, fall through to `creep.upgradeController(creep.room.controller)`. Every spare energy unit in the system gets sunk into RCL progression instead of being lost to idle ticks.
 **Why it matters:** In practice this is the single biggest RCL1→RCL2 accelerator the shipped code has over the baseline. While the spawn is full, the harvester is effectively a free upgrader.
 
+### 6. Multi-Spawn Loop — `for (name in Game.spawns)` vs `Game.spawns.Spawn1`
+**Baseline:** Hardcoded `const spawn = Game.spawns.Spawn1;`. The spawn manager only knows about one spawn by name. If the room ever gets a second spawn (RCL7 in vanilla progression, RCL2 in ShardedKV, or any scenario where the user renames the spawn), the manager silently skips container planning, spawns nothing, and never shows the "currently spawning" visual.
+**Shipped:** `for (const spawnName in Game.spawns) { const spawn = Game.spawns[spawnName]; ... }` — iterate every owned spawn, run container planning + quota check + visual for each. Creep counts are computed once before the loop (they're room-wide: both spawns in the same room share the same creep pool). The spawn-name suffix on the new creep name (`${role}${Game.time}${spawnTag}` where `spawnTag` is `A`/`B`/`C`/...) prevents `ERR_NAME_EXISTS` collisions when two idle spawns in the same room both try to queue a harvester on the same tick.
+**Why it matters:** The 1-spawn case is byte-for-byte the same behavior (the first iteration runs Spawn1 with tag `A`). The 2-spawn case is the actual fix — without it, the second spawn returns `ERR_NAME_EXISTS` for every spawn attempt and the room's effective spawn rate halves. Container planning also runs once per spawn (idempotent for spawns in the same room, since the planner dedupes by source).
+
 ---
 
 ## 📐 Reference Architecture — Dynamic Body Scaler
