@@ -1,85 +1,10 @@
 'use strict';
 
-function run$2(creep) {
-    // Toggle between harvesting and delivering based on carried energy.
-    if (creep.memory.delivering && creep.store[RESOURCE_ENERGY] === 0) {
-        creep.memory.delivering = false;
-        creep.say("⛏ harvest");
-    }
-    if (!creep.memory.delivering && creep.store.getFreeCapacity() === 0) {
-        creep.memory.delivering = true;
-        creep.say("📦 deliver");
-    }
-    if (!creep.memory.delivering) {
-        const source = creep.pos.findClosestByPath(FIND_SOURCES_ACTIVE);
-        if (source && creep.harvest(source) === ERR_NOT_IN_RANGE) {
-            creep.moveTo(source, { visualizePathStyle: { stroke: "#ffaa00" } });
-        }
-        return;
-    }
-    // Fill spawn and extensions first, then fall back to the controller.
-    const target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
-        filter: (s) => (s.structureType === STRUCTURE_SPAWN || s.structureType === STRUCTURE_EXTENSION) &&
-            s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
-    });
-    if (target) {
-        if (creep.transfer(target, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
-            creep.moveTo(target, { visualizePathStyle: { stroke: "#ffffff" } });
-        }
-    }
-    else if (creep.room.controller && creep.upgradeController(creep.room.controller) === ERR_NOT_IN_RANGE) {
-        creep.moveTo(creep.room.controller, { visualizePathStyle: { stroke: "#ffffff" } });
-    }
-}
-
-function run$1(creep) {
-    if (creep.memory.upgrading && creep.store[RESOURCE_ENERGY] === 0) {
-        creep.memory.upgrading = false;
-        creep.say("⛏ harvest");
-    }
-    if (!creep.memory.upgrading && creep.store.getFreeCapacity() === 0) {
-        creep.memory.upgrading = true;
-        creep.say("⚡ upgrade");
-    }
-    if (creep.memory.upgrading) {
-        if (creep.room.controller && creep.upgradeController(creep.room.controller) === ERR_NOT_IN_RANGE) {
-            creep.moveTo(creep.room.controller, { visualizePathStyle: { stroke: "#ffffff" } });
-        }
-        return;
-    }
-    const source = creep.pos.findClosestByPath(FIND_SOURCES_ACTIVE);
-    if (source && creep.harvest(source) === ERR_NOT_IN_RANGE) {
-        creep.moveTo(source, { visualizePathStyle: { stroke: "#ffaa00" } });
-    }
-}
-
-function run(creep) {
-    if (creep.memory.building && creep.store[RESOURCE_ENERGY] === 0) {
-        creep.memory.building = false;
-        creep.say("⛏ harvest");
-    }
-    if (!creep.memory.building && creep.store.getFreeCapacity() === 0) {
-        creep.memory.building = true;
-        creep.say("🚧 build");
-    }
-    if (creep.memory.building) {
-        const target = creep.pos.findClosestByPath(FIND_CONSTRUCTION_SITES);
-        if (target) {
-            if (creep.build(target) === ERR_NOT_IN_RANGE) {
-                creep.moveTo(target, { visualizePathStyle: { stroke: "#ffffff" } });
-            }
-        }
-        else if (creep.room.controller && creep.upgradeController(creep.room.controller) === ERR_NOT_IN_RANGE) {
-            // Nothing to build: help upgrade the controller instead.
-            creep.moveTo(creep.room.controller, { visualizePathStyle: { stroke: "#ffffff" } });
-        }
-        return;
-    }
-    const source = creep.pos.findClosestByPath(FIND_SOURCES_ACTIVE);
-    if (source && creep.harvest(source) === ERR_NOT_IN_RANGE) {
-        creep.moveTo(source, { visualizePathStyle: { stroke: "#ffaa00" } });
-    }
-}
+const bodyFactory = require('bodyFactory');
+const containerPlanner = require('containerPlanner');
+const roleHarvester = require('role.harvester');
+const roleUpgrader = require('role.upgrader');
+const roleBuilder = require('role.builder');
 
 // Desired number of creeps per role.
 const TARGETS = {
@@ -87,8 +12,7 @@ const TARGETS = {
     upgrader: 1,
     builder: 1
 };
-// Body used for the first creeps. Costs 200 energy, always affordable.
-const STARTER_BODY = [WORK, CARRY, MOVE];
+
 const loop = () => {
     // Clear memory of creeps that no longer exist so Memory doesn't leak.
     for (const name in Memory.creeps) {
@@ -97,7 +21,18 @@ const loop = () => {
             console.log("Clearing non-existing creep memory:", name);
         }
     }
+
     const spawn = Game.spawns.Spawn1;
+
+    // RCL2 infrastructure planning: place a container construction site
+    // next to each source that doesn't already have one. RCL-gated inside
+    // the planner; safe to call every tick. Runs BEFORE the spawn logic
+    // so that the harvester's dual-mode check picks up the container as
+    // soon as it's built.
+    if (spawn) {
+        containerPlanner.plan(spawn.room);
+    }
+
     // Count how many creeps of each role are currently alive.
     const counts = { harvester: 0, upgrader: 0, builder: 0 };
     for (const creepName in Game.creeps) {
@@ -106,21 +41,33 @@ const loop = () => {
             counts[role]++;
         }
     }
+
     // Spawn the first role that is below its target (harvesters first).
     if (spawn && !spawn.spawning) {
         for (const wantedRole of Object.keys(TARGETS)) {
             if (counts[wantedRole] < TARGETS[wantedRole]) {
+                // Dynamic body: scale to room.energyCapacityAvailable so we
+                // automatically upgrade from [WORK,CARRY,MOVE] (200) to chunkier
+                // profiles as RCL2 extensions unlock higher energy budgets.
+                const body = bodyFactory.forRole(spawn.room.energyCapacityAvailable, wantedRole);
+                if (body.length === 0) {
+                    // Not enough energy for even tier1 (rare; usually means
+                    // extensions just got placed and the room is mid-recharge).
+                    // Skip this tick; we'll re-evaluate on the next one.
+                    break;
+                }
                 const newName = `${wantedRole}${Game.time}`;
-                const result = spawn.spawnCreep(STARTER_BODY, newName, {
+                const result = spawn.spawnCreep(body, newName, {
                     memory: { role: wantedRole }
                 });
                 if (result === OK) {
-                    console.log(`Spawning new ${wantedRole}: ${newName}`);
+                    console.log(`Spawning new ${wantedRole}: ${newName} (${bodyFactory.costOf(body)} energy, ${body.length} parts)`);
                 }
                 break;
             }
         }
     }
+
     // Show what's currently being spawned above the spawn.
     if (spawn && spawn.spawning) {
         const spawningCreep = Game.creeps[spawn.spawning.name];
@@ -129,18 +76,19 @@ const loop = () => {
             opacity: 0.8
         });
     }
+
     // Run each creep's role logic.
     for (const runName in Game.creeps) {
         const creep = Game.creeps[runName];
         switch (creep.memory.role) {
             case "harvester":
-                run$2(creep);
+                roleHarvester.run(creep);
                 break;
             case "upgrader":
-                run$1(creep);
+                roleUpgrader.run(creep);
                 break;
             case "builder":
-                run(creep);
+                roleBuilder.run(creep);
                 break;
         }
     }
