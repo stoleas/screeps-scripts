@@ -13,6 +13,7 @@
     "skipLibCheck": true,
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
+    "allowUmdGlobalAccess": true,
     "allowUnreachableCode": false,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
