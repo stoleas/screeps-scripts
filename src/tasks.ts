@@ -1,5 +1,10 @@
 'use strict';
 
+// Overmind's custom "task not done yet" sentinel. Must be a real runtime
+// value — a `declare const` in types.d.ts compiles to nothing at runtime,
+// which makes every `return ERR_NOT_DONE` throw ReferenceError.
+const ERR_NOT_DONE = -4;
+
 // Concrete Task implementations adapted from Overmind's tasks/instances/*.
 // Each task: harvest, transfer, upgrade, build, withdraw, drop.
 

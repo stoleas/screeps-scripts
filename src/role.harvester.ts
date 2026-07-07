@@ -17,7 +17,7 @@ export const roleHarvester = {
 
         if (task) {
             const result = task.run(creep);
-            if (result === OK) {
+            if (result === OK || result === ERR_INVALID_TARGET) {
                 creep.memory.task = null;
             }
         }
@@ -43,7 +43,11 @@ export const roleHarvester = {
                     return Tasks.drop(container);
                 }
             }
-            return Tasks.harvest(source);
+            // Not on the container yet — only harvest if we have room.
+            // If full, fall through to legacy mode to dump energy.
+            if (creep.store.getFreeCapacity() > 0) {
+                return Tasks.harvest(source);
+            }
         }
 
         // Legacy mode: harvest → transfer to spawn/extension

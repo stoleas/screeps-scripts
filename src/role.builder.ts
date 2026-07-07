@@ -16,7 +16,7 @@ export const roleBuilder = {
 
         if (task) {
             const result = task.run(creep);
-            if (result === OK) {
+            if (result === OK || result === ERR_INVALID_TARGET) {
                 creep.memory.task = null;
             }
         }
