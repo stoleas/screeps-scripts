@@ -1,39 +1,46 @@
 'use strict';
 
-interface BuilderMemory extends CreepMemory {
-    building?: boolean;
-}
+import { Task } from './task';
+import { Tasks } from './tasks';
 
 export const roleBuilder = {
     run(creep: Creep): void {
-        const mem = creep.memory as BuilderMemory;
-        if (mem.building && creep.store[RESOURCE_ENERGY] === 0) {
-            mem.building = false;
-            creep.say('⛏ harvest');
-        }
-        if (!mem.building && creep.store.getFreeCapacity() === 0) {
-            mem.building = true;
-            creep.say('🚧 build');
+        let task = Task.load(creep);
+
+        if (!task) {
+            task = this.assignTask(creep);
+            if (task) {
+                creep.memory.task = task.save();
+            }
         }
 
-        if (mem.building) {
-            const target = creep.pos.findClosestByPath(FIND_CONSTRUCTION_SITES);
-            if (target) {
-                if (creep.build(target) === ERR_NOT_IN_RANGE) {
-                    creep.moveTo(target, { visualizePathStyle: { stroke: '#ffffff' } });
-                }
-            } else {
-                // Nothing to build: help upgrade the controller instead.
-                if (creep.room.controller &&
-                    creep.upgradeController(creep.room.controller) === ERR_NOT_IN_RANGE) {
-                    creep.moveTo(creep.room.controller, { visualizePathStyle: { stroke: '#ffffff' } });
-                }
-            }
-        } else {
-            const source = creep.pos.findClosestByPath(FIND_SOURCES_ACTIVE);
-            if (source && creep.harvest(source) === ERR_NOT_IN_RANGE) {
-                creep.moveTo(source, { visualizePathStyle: { stroke: '#ffaa00' } });
+        if (task) {
+            const result = task.run(creep);
+            if (result === OK) {
+                creep.memory.task = null;
             }
         }
-    }
+    },
+
+    assignTask(creep: Creep): Task | null {
+        if (creep.store.getFreeCapacity() > 0) {
+            const source = creep.pos.findClosestByPath(FIND_SOURCES_ACTIVE);
+            if (source) {
+                return Tasks.harvest(source);
+            }
+            return null;
+        }
+
+        const target = creep.pos.findClosestByPath(FIND_CONSTRUCTION_SITES);
+        if (target) {
+            return Tasks.build(target);
+        }
+
+        // Nothing to build: help upgrade the controller instead.
+        if (creep.room.controller) {
+            return Tasks.upgrade(creep.room.controller);
+        }
+
+        return null;
+    },
 };
