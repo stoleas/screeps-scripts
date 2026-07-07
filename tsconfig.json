@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "module": "esnext",
+    "lib": ["esnext"],
+    "target": "es2017",
+    "moduleResolution": "node",
+    "newLine": "lf",
+    "baseUrl": "src/",
+    "sourceMap": false,
+    "strict": true,
+    "strictPropertyInitialization": false,
+    "noImplicitThis": false,
+    "skipLibCheck": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "allowUmdGlobalAccess": true,
+    "allowUnreachableCode": false,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "removeComments": false,
+    "types": ["screeps", "lodash"]
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "node_modules/@types/node"]
+}

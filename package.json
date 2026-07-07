@@ -1,0 +1,21 @@
+{
+  "name": "screeps-scripts",
+  "version": "0.1.0",
+  "description": "Screeps AI with Overmind-inspired architecture",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc -p . --noEmit",
+    "compile": "rollup -c",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@types/lodash": "^3.10.1",
+    "@types/screeps": "^3.0.0",
+    "@rollup/plugin-commonjs": "^25.0.0",
+    "@rollup/plugin-node-resolve": "^15.0.0",
+    "@rollup/plugin-typescript": "^12.0.0",
+    "rollup": "^3.0.0",
+    "tslib": "^2.6.0",
+    "typescript": "^4.9.0"
+  }
+}
