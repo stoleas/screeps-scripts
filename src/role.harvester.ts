@@ -2,6 +2,7 @@
 
 import { Task } from './task';
 import { Tasks } from './tasks';
+import { cache } from './cache';
 
 export const roleHarvester = {
     run(creep: Creep): void {
@@ -26,10 +27,12 @@ export const roleHarvester = {
         const source = creep.pos.findClosestByPath(FIND_SOURCES_ACTIVE);
         if (!source) return null;
 
-        // Check for adjacent container (static mode)
-        const containers = source.pos.findInRange(FIND_STRUCTURES, 1, {
-            filter: (s: Structure) => s.structureType === STRUCTURE_CONTAINER,
-        });
+        // Check for adjacent container (static mode) — cached lookup
+        const containers = cache.structures('source_' + source.id + '_containers', () =>
+            source.pos.findInRange(FIND_STRUCTURES, 1, {
+                filter: (s: Structure) => s.structureType === STRUCTURE_CONTAINER,
+            })
+        );
 
         if (containers.length > 0) {
             const container = containers[0];
