@@ -6,6 +6,7 @@ import { roleHarvester } from './role.harvester';
 import { roleUpgrader } from './role.upgrader';
 import { roleBuilder } from './role.builder';
 import { Mem } from './memory';
+import { Colony } from './colony';
 
 // Desired number of creeps per role.
 const TARGETS: { [role: string]: number } = {
@@ -19,6 +20,23 @@ export const loop = (): void => {
     Mem.load();
     if (!Mem.shouldRun()) return;
     Mem.clean();
+
+    // Build colony objects (one per owned room) and tag creeps.
+    const colonies: Colony[] = [];
+    for (const spawnName in Game.spawns) {
+        const room = Game.spawns[spawnName].room;
+        if (!_.find(colonies, (c: Colony) => c.name === room.name)) {
+            colonies.push(new Colony(room));
+        }
+    }
+
+    // Tag creeps with their colony (room name) for Colony.creeps filtering.
+    for (const creepName in Game.creeps) {
+        const creep = Game.creeps[creepName];
+        if (!creep.memory.colony && creep.room.controller && creep.room.controller.my) {
+            creep.memory.colony = creep.room.name;
+        }
+    }
 
     // Count how many creeps of each role are currently alive. The counts
     // are room-wide: if a room has two spawns they share the same creep
