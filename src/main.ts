@@ -1,19 +1,13 @@
 'use strict';
 
-import { bodyFactory } from './bodyFactory';
-import { containerPlanner } from './containerPlanner';
-import { roleHarvester } from './role.harvester';
-import { roleUpgrader } from './role.upgrader';
-import { roleBuilder } from './role.builder';
 import { Mem } from './memory';
 import { Colony } from './colony';
-
-// Desired number of creeps per role.
-const TARGETS: { [role: string]: number } = {
-    harvester: 2,
-    upgrader: 1,
-    builder: 1
-};
+import { Hatchery } from './hatchery';
+import { HarvestOverlord } from './overlords/harvestOverlord';
+import { UpgradeOverlord } from './overlords/upgradeOverlord';
+import { BuildOverlord } from './overlords/buildOverlord';
+import { Overlord } from './overlord';
+import { containerPlanner } from './containerPlanner';
 
 export const loop = (): void => {
     // Memory management: init, CPU bucket gate, garbage collection.
@@ -38,88 +32,40 @@ export const loop = (): void => {
         }
     }
 
-    // Count how many creeps of each role are currently alive. The counts
-    // are room-wide: if a room has two spawns they share the same creep
-    // pool, so each spawn independently consults these numbers when
-    // deciding what to queue next.
-    const counts: { [role: string]: number } = { harvester: 0, upgrader: 0, builder: 0 };
-    for (const creepName in Game.creeps) {
-        const role = Game.creeps[creepName].memory.role;
-        if (role && role in counts) {
-            counts[role]++;
+    // Per-colony: plan containers, build overlords, spawn via hatchery,
+    // then run overlord logic.
+    for (const colony of colonies) {
+        // RCL2 container planning (kept until RoomPlanner replaces it).
+        containerPlanner.plan(colony.room);
+
+        // Build overlords for this colony.
+        const overlords: Overlord[] = [
+            new HarvestOverlord(colony),
+            new UpgradeOverlord(colony),
+            new BuildOverlord(colony),
+        ];
+
+        // Refresh creep assignments, request spawns, then run.
+        const hatchery = new Hatchery(colony);
+        for (const overlord of overlords) {
+            overlord.refresh();
+            overlord.init(hatchery);
         }
-    }
+        hatchery.run();
 
-    // Iterate every spawn we own. With one spawn this loop runs once;
-    // with two (e.g. RCL7+ second spawn) each one independently evaluates
-    // the quotas against the shared creep pool and the first idle one
-    // queues the next under-quota role.
-    let spawnCounter = 0;
-    for (const spawnName in Game.spawns) {
-        const spawn = Game.spawns[spawnName];
-        const spawnTag = String.fromCharCode(65 + (spawnCounter++ % 26));
+        for (const overlord of overlords) {
+            overlord.run();
+        }
 
-        // RCL2 infrastructure planning: place a container construction
-        // site next to each source that doesn't already have one.
-        // RCL-gated inside the planner; safe to call every tick. Runs
-        // BEFORE the spawn logic so that the harvester's dual-mode check
-        // picks up the container as soon as it's built. Idempotent across
-        // spawns in the same room — the planner dedupes by source.
-        containerPlanner.plan(spawn.room);
-
-        // Spawn the first role that is below its target (harvesters
-        // first). The !spawn.spawning guard prevents re-queuing while the
-        // previous creep is still being born.
-        if (!spawn.spawning) {
-            for (const wantedRole of Object.keys(TARGETS)) {
-                if (counts[wantedRole] < TARGETS[wantedRole]) {
-                    // Dynamic body: scale to room.energyCapacityAvailable
-                    // so we automatically upgrade from [WORK,CARRY,MOVE]
-                    // (200) to chunkier profiles as RCL2 extensions
-                    // unlock higher energy budgets.
-                    const body = bodyFactory.forRole(spawn.room.energyCapacityAvailable, wantedRole);
-                    if (body.length === 0) {
-                        // Not enough energy for even tier1 (rare; usually
-                        // means extensions just got placed and the room
-                        // is mid-recharge). Skip this tick; we'll
-                        // re-evaluate on the next one.
-                        break;
-                    }
-                    const newName = `${wantedRole}${Game.time}${spawnTag}`;
-                    const result = spawn.spawnCreep(body, newName, {
-                        memory: { role: wantedRole }
-                    });
-                    if (result === OK) {
-                        console.log(`Spawning new ${wantedRole}: ${newName} (${bodyFactory.costOf(body)} energy, ${body.length} parts)`);
-                    }
-                    break;
-                }
+        // Show what's currently being spawned above each spawn.
+        for (const spawn of colony.spawns) {
+            if (spawn.spawning) {
+                const spawningCreep = Game.creeps[spawn.spawning.name];
+                spawn.room.visual.text(`🛠️ ${spawningCreep.memory.role}`, spawn.pos.x + 1, spawn.pos.y, {
+                    align: 'left',
+                    opacity: 0.8
+                });
             }
-        }
-
-        // Show what's currently being spawned above the spawn.
-        if (spawn.spawning) {
-            const spawningCreep = Game.creeps[spawn.spawning.name];
-            spawn.room.visual.text(`🛠️ ${spawningCreep.memory.role}`, spawn.pos.x + 1, spawn.pos.y, {
-                align: 'left',
-                opacity: 0.8
-            });
-        }
-    }
-
-    // Run each creep's role logic.
-    for (const runName in Game.creeps) {
-        const creep = Game.creeps[runName];
-        switch (creep.memory.role) {
-            case 'harvester':
-                roleHarvester.run(creep);
-                break;
-            case 'upgrader':
-                roleUpgrader.run(creep);
-                break;
-            case 'builder':
-                roleBuilder.run(creep);
-                break;
         }
     }
 };
