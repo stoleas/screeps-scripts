@@ -7,7 +7,7 @@ import { HarvestOverlord } from './overlords/harvestOverlord';
 import { UpgradeOverlord } from './overlords/upgradeOverlord';
 import { BuildOverlord } from './overlords/buildOverlord';
 import { Overlord } from './overlord';
-import { containerPlanner } from './containerPlanner';
+import { roomPlanner } from './roomPlanner';
 
 export const loop = (): void => {
     // Memory management: init, CPU bucket gate, garbage collection.
@@ -35,8 +35,8 @@ export const loop = (): void => {
     // Per-colony: plan containers, build overlords, spawn via hatchery,
     // then run overlord logic.
     for (const colony of colonies) {
-        // RCL2 container planning (kept until RoomPlanner replaces it).
-        containerPlanner.plan(colony.room);
+        // Room planning: place structures from bunker layout.
+        roomPlanner.plan(colony.room);
 
         // Build overlords for this colony.
         const overlords: Overlord[] = [
