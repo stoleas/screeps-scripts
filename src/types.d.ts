@@ -28,3 +28,17 @@ declare const console: {
 // Overmind uses a custom ERR_NOT_DONE constant (-4) to signal that a
 // Task is still in progress. Screeps doesn't define this; declare it.
 declare const ERR_NOT_DONE: number;
+
+// Screeps provides a `global` object at runtime but @types/screeps
+// doesn't declare it in a way TS modules can access. Declare it.
+declare const global: any;
+
+// Augment Memory with optional stats field used by Mem.load().
+interface Memory {
+    stats?: any;
+}
+
+// Augment RoomMemory with optional intel field used by Mem.clean().
+interface RoomMemory {
+    intel?: { tick: number };
+}

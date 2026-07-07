@@ -5,6 +5,7 @@ import { containerPlanner } from './containerPlanner';
 import { roleHarvester } from './role.harvester';
 import { roleUpgrader } from './role.upgrader';
 import { roleBuilder } from './role.builder';
+import { Mem } from './memory';
 
 // Desired number of creeps per role.
 const TARGETS: { [role: string]: number } = {
@@ -14,13 +15,10 @@ const TARGETS: { [role: string]: number } = {
 };
 
 export const loop = (): void => {
-    // Clear memory of creeps that no longer exist so Memory doesn't leak.
-    for (const name in Memory.creeps) {
-        if (!(name in Game.creeps)) {
-            delete Memory.creeps[name];
-            console.log('Clearing non-existing creep memory:', name);
-        }
-    }
+    // Memory management: init, CPU bucket gate, garbage collection.
+    Mem.load();
+    if (!Mem.shouldRun()) return;
+    Mem.clean();
 
     // Count how many creeps of each role are currently alive. The counts
     // are room-wide: if a room has two spawns they share the same creep
