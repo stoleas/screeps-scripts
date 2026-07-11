@@ -13,7 +13,10 @@ export class UpgradeOverlord extends Overlord {
     }
 
     init(hatchery: Hatchery): void {
-        this.requestCreep(hatchery, bodyFactory.PROFILES.upgrader, 'upgrader', 1);
+        // 3 upgraders: 6 e/t into controller (3×2W each).
+        // With static miners saturating 20 e/t source income, 3 upgraders
+        // consume 6 e/t → 45,000/6 = 7,500 ticks ≈ 5.2h to RCL3 (~3x speedup).
+        this.requestCreep(hatchery, bodyFactory.PROFILES.upgrader, 'upgrader', 3);
     }
 
     run(): void {
