@@ -43,6 +43,20 @@ const PROFILES: { [role: string]: CreepSetup } = {
         sizeLimit: 1,
     }),
 
+    // Miner: static miner that sits on a container next to a source.
+    // 5W+2M per repeat = 550 energy, sizeLimit=1 → max 5W+2M = 7 parts, 550 energy.
+    // No CARRY: drops energy onto container, haulers pick it up.
+    miner: new CreepSetup('miner', {
+        pattern: [WORK, WORK, WORK, WORK, WORK, MOVE, MOVE],  // 550 per repeat
+        sizeLimit: 1,
+    }),
+
+    // RCL1-2 fallback: [WORK, WORK, MOVE] = 250 energy, fits 300-energy spawn.
+    minerStarter: new CreepSetup('miner', {
+        pattern: [WORK, WORK, MOVE],  // 250 per repeat
+        sizeLimit: 1,
+    }),
+
     // Hauler: CARRY-heavy for container→storage transport (RCL4+).
     // 2C+2M per repeat = 200 energy, 1:1 fat:MOVE ratio (full speed).
     hauler: new CreepSetup('hauler', {
