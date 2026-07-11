@@ -14,28 +14,30 @@ Deploy: copy `dist/main.js` to your Steam client's watch directory.
 
 ## Alliance Configuration
 
-**Before deploying, update `src/alliance.ts`** with the correct values for your co-op:
+Two mechanisms for friend detection:
+
+### 1. Static allies list (`src/alliance.ts`)
+
+Update the `allies` array with in-game usernames. Both players must keep
+this synced.
+
+### 2. Controller-sign discovery (dynamic)
+
+Both players sign their controllers with the same secret keyword:
 
 ```typescript
-export const ALLIANCE = {
-    allies: [
-        'stoleas',    // your in-game username
-        'zh0ul',      // ally's in-game username
-    ],
-    sharedRooms: [
-        // 'W1N1', 'W1N2',  // fill in once rooms are chosen
-    ],
-    lowEnergyThreshold: 50000,
-    underSiegeThreshold: 0.3,
-    SEGMENT_OUR: 90,
-    SEGMENT_ALLY: 90,
-    commsRefreshInterval: 10,
-};
+signKeyword: 'ZERG_ALLIANCE'
 ```
 
-Both players must keep this file synced (same allies list, same segment IDs).
-The `allies` array drives IFF detection — if your username isn't in it,
-towers will attack you.
+In-game, have a creep sign your controller:
+```javascript
+creep.signController(creep.room.controller, 'ZERG_ALLIANCE')
+```
+
+When your script scouts a room, it reads `controller.sign.text`. If it
+matches the keyword, `controller.sign.username` is recognized as a friend
+— towers won't attack them, healers will heal their creeps. This lets you
+add new allies without editing code: they just sign their controller.
 
 ## Architecture
 

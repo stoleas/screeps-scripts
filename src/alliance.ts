@@ -11,6 +11,14 @@ export const ALLIANCE = {
         'zh0ul',      // zh0ul's MMO username
     ],
 
+    // Secret keyword for controller-sign-based friend discovery.
+    // Both players sign their controllers with this string. When you scout
+    // a room, you read controller.sign.text — if it matches, the signer's
+    // username (controller.sign.username) is a friend.
+    // This lets scripts discover allies dynamically without editing this file.
+    // Both players must agree on the keyword and keep it secret.
+    signKeyword: 'ZERG_ALLIANCE',
+
     // Rooms where both players have transit permissions or shared operations.
     // Used by scouting/defense logic to allow allied creeps to pass through.
     sharedRooms: [
@@ -33,7 +41,37 @@ export const ALLIANCE = {
     commsRefreshInterval: 10,
 };
 
-// Convenience: check if a username is an ally.
+// --- Ally detection -------------------------------------------------
+// Two mechanisms: static list (allies array) and dynamic sign-based discovery.
+
+// Check if a username is an ally via the static allies list.
 export function isAlly(username: string): boolean {
     return ALLIANCE.allies.includes(username);
+}
+
+// Check if a room's controller sign matches the alliance keyword.
+// If it does, the signer's username is an ally. This lets you discover
+// new allies dynamically — they just sign their controller with the
+// secret keyword and you'll recognize them without editing code.
+export function isAllyBySign(room: Room): string | null {
+    if (!room.controller) return null;
+    const sign = room.controller.sign;
+    if (!sign) return null;
+    if (sign.text === ALLIANCE.signKeyword) {
+        return sign.username;
+    }
+    return null;
+}
+
+// Combined check: is a username an ally via static list OR has the
+// username signed a visible controller with the keyword?
+export function isFriend(username: string, visibleRooms?: Room[]): boolean {
+    if (isAlly(username)) return true;
+    if (visibleRooms) {
+        for (const room of visibleRooms) {
+            const signedBy = isAllyBySign(room);
+            if (signedBy === username) return true;
+        }
+    }
+    return false;
 }

@@ -11,7 +11,7 @@
 //
 // Repair is gated on tower energy > 50% to preserve energy for attacks.
 
-import { isAlly } from './alliance';
+import { isAlly, isAllyBySign } from './alliance';
 
 export const towerDefense = {
     run(room: Room): void {
@@ -22,8 +22,14 @@ export const towerDefense = {
         if (towers.length === 0) return;
 
         // --- 1. Attack hostiles (IFF: exclude allies) ---
+        // Check both the static allies list AND the controller sign.
+        // If this room's controller is signed with the alliance keyword,
+        // the signer's creeps are friendly — don't attack them.
+        const signAlly = isAllyBySign(room);
         const hostiles = room.find(FIND_HOSTILE_CREEPS, {
-            filter: (c: Creep) => !isAlly(c.owner.username),
+            filter: (c: Creep) =>
+                !isAlly(c.owner.username) &&
+                c.owner.username !== signAlly,
         });
 
         if (hostiles.length > 0) {
@@ -42,7 +48,9 @@ export const towerDefense = {
         });
         // Also heal allied (zh0ul's) creeps that appear as "hostile" but are allies.
         const damagedAlliedCreeps = room.find(FIND_HOSTILE_CREEPS, {
-            filter: (c: Creep) => isAlly(c.owner.username) && c.hits < c.hitsMax,
+            filter: (c: Creep) =>
+                (isAlly(c.owner.username) || c.owner.username === signAlly) &&
+                c.hits < c.hitsMax,
         });
         const healTargets = [...damagedMyCreeps, ...damagedAlliedCreeps];
 
