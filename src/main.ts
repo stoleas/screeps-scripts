@@ -21,12 +21,19 @@ import { CombatIntel } from './intel/CombatIntel';
 import { ProfilerOutput } from './profiler/Profiler';
 import { StatsCollector } from './stats/StatsCollector';
 import { ObserverOverlord } from './observer/ObserverOverlord';
+import { AlertEmitter } from './alerts/AlertEmitter';
+import { AutomationConsumer } from './automation/AutomationConsumer';
 
 export const loop = (): void => {
     // Memory management: init, CPU bucket gate, garbage collection.
     Mem.load();
     if (!Mem.shouldRun()) return;
     Mem.clean();
+
+    // Consume automation directives from Memory.automation (written by
+    // external pipeline via Screeps REST API). Runs early so actions like
+    // safeMode take effect before this tick's defense logic runs.
+    AutomationConsumer.consume();
 
     // Scan in-game flags for ally:username entries. This populates the
     // per-tick cache used by tower IFF and comms, and logs when the set changes.
@@ -199,6 +206,10 @@ export const loop = (): void => {
 
     // Profiler: auto-dump every 100 ticks when enabled (no-op when disabled).
     ProfilerOutput.autoDump();
+
+    // Detect anomalies (defense breaches, CPU spikes) and write to
+    // Memory.alerts. External connector polls this for alert dispatch.
+    AlertEmitter.check();
 
     // Collect metrics for external Grafana pipeline. Runs every 10 ticks.
     StatsCollector.collect();
