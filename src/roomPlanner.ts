@@ -13,42 +13,69 @@ import { commandCenterLayout } from './layouts/commandCenter';
 
 interface Coord { x: number; y: number; }
 
-// All layouts with their default anchors.
-const LAYOUTS: { name: string; layout: { data: { anchor: Coord }; [rcl: number]: RCLLayout } }[] = [
-    { name: 'hatchery', layout: hatcheryLayout },
-    { name: 'commandCenter', layout: commandCenterLayout },
-    { name: 'bunker', layout: bunkerLayout },
+// All layouts with their default anchors and flag color pairs.
+// Flag format: [primary, secondary] matching Overmind conventions.
+//   white/red   = bunker
+//   white/green = hatchery
+//   white/blue  = commandCenter
+const LAYOUTS: {
+    name: string;
+    layout: { data: { anchor: Coord }; [rcl: number]: RCLLayout };
+    flagColor: [ColorConstant, ColorConstant];
+}[] = [
+    { name: 'hatchery',      layout: hatcheryLayout,      flagColor: [COLOR_WHITE, COLOR_GREEN] },
+    { name: 'commandCenter', layout: commandCenterLayout, flagColor: [COLOR_WHITE, COLOR_BLUE] },
+    { name: 'bunker',        layout: bunkerLayout,        flagColor: [COLOR_WHITE, COLOR_RED] },
 ];
 
-// Flag colors for manual component placement (matching Overmind):
-// white/red = bunker, white/green = hatchery, white/blue = commandCenter
-// If no placement flags exist, all components use their default anchor
-// (room center 25,25).
+// Find a placement flag for a component in a room.
+// Matches by color pair (primary/secondary) within the room.
+function findPlacementFlag(room: Room, flagColor: [ColorConstant, ColorConstant]): Flag | null {
+    const [primary, secondary] = flagColor;
+    for (const flagName in Game.flags) {
+        const flag = Game.flags[flagName];
+        if (flag.pos.roomName !== room.name) continue;
+        if (flag.color === primary && flag.secondaryColor === secondary) {
+            return flag;
+        }
+    }
+    return null;
+}
 
 export const roomPlanner = {
     plan(room: Room): boolean {
         if (!room.controller) return false;
         const rcl = room.controller.level;
 
-        let placedAny = false;
-
-        for (const { layout } of LAYOUTS) {
+        for (const { layout, flagColor } of LAYOUTS) {
             const rclData = (layout as any)[rcl] as RCLLayout | undefined;
             if (!rclData) continue;
 
-            // Default: use the layout's anchor as the placement position.
-            // No translation needed — coordinates are already absolute
-            // relative to room center (25,25).
-            // (Future: check for placement flags and translate from
-            // layout anchor to flag position.)
-            const anchor = layout.data.anchor;
+            // Determine the placement anchor for this component.
+            // If a placement flag exists, translate from the layout's default
+            // anchor to the flag position. Otherwise, use the layout's anchor
+            // directly (coordinates are already relative to room center 25,25).
+            const defaultAnchor = layout.data.anchor;
+            const flag = findPlacementFlag(room, flagColor);
+
+            // The translation offset: how far to shift from the layout's
+            // default anchor to the desired placement position.
+            let dx: number;
+            let dy: number;
+
+            if (flag) {
+                // Translate from layout anchor to flag position.
+                dx = flag.pos.x - defaultAnchor.x;
+                dy = flag.pos.y - defaultAnchor.y;
+            } else {
+                // Default: translate from layout anchor to room center (25,25).
+                dx = 25 - defaultAnchor.x;
+                dy = 25 - defaultAnchor.y;
+            }
 
             for (const structureType in rclData.buildings) {
                 const positions = rclData.buildings[structureType];
                 for (const pos of positions) {
-                    // Translate from layout anchor to room center (25,25).
-                    const dx = 25 - anchor.x;
-                    const dy = 25 - anchor.y;
                     const x = pos.x + dx;
                     const y = pos.y + dy;
 
@@ -63,7 +90,8 @@ export const roomPlanner = {
 
                     const result = room.createConstructionSite(x, y, structureType as BuildableStructureConstant);
                     if (result === OK) {
-                        console.log(`[RoomPlanner] Placing ${structureType} at (${x},${y})`);
+                        const source = flag ? 'flag' : 'default';
+                        console.log(`[RoomPlanner] Placing ${structureType} at (${x},${y}) [${source}]`);
                         return true;  // One site per tick per room.
                     }
                 }
