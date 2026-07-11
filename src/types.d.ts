@@ -39,6 +39,23 @@ interface Memory {
     stats?: any;
     observers?: { [key: string]: { targets: string[]; lastIndex: number } };
     nextExpectedRoom?: string;
+    alerts?: AlertEntry[];
+    automation?: AutomationEntry[];
+}
+
+interface AlertEntry {
+    type: string;
+    tick: number;
+    room?: string;
+    severity: 'warning' | 'critical';
+    message: string;
+}
+
+interface AutomationEntry {
+    action: string;
+    tick: number;
+    room?: string;
+    data?: { [key: string]: any };
 }
 
 // Augment RoomMemory with optional intel field used by CombatIntel.
