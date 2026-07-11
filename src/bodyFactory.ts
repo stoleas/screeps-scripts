@@ -49,6 +49,20 @@ const PROFILES: { [role: string]: CreepSetup } = {
         pattern: [CARRY, CARRY, MOVE, MOVE],  // 200 per repeat
         sizeLimit: 6,
     }),
+
+    // Brawler: melee fighter for defense. TOUGH+ATTACK+MOVE x2 per repeat.
+    // 1 TOUGH (10) + 1 ATTACK (80) + 2 MOVE (100) = 190 per repeat.
+    // sizeLimit=5 → max 5 repeats = 5T+5A+10M = 20 parts, 950 energy.
+    brawler: new CreepSetup('brawler', {
+        pattern: [TOUGH, ATTACK, MOVE, MOVE],  // 190 per repeat
+        sizeLimit: 5,
+    }),
+
+    // RCL1-2 fallback: minimal defender that fits 300-energy spawn.
+    brawlerStarter: new CreepSetup('brawler', {
+        pattern: [TOUGH, ATTACK, MOVE],  // 110 per repeat
+        sizeLimit: 2,
+    }),
 };
 
 export const bodyFactory = {
