@@ -4,6 +4,7 @@ import { Overlord } from '../overlord';
 import { Colony } from '../colony';
 import { Priority } from '../priorities';
 import { Hatchery } from '../hatchery';
+import { bodyFactory } from '../bodyFactory';
 import { LogisticsNetwork } from '../logistics/LogisticsNetwork';
 import { Task } from '../task';
 import { Tasks } from '../tasks';
@@ -17,7 +18,8 @@ export class HaulerOverlord extends Overlord {
     }
 
     init(hatchery: Hatchery): void {
-        // Only spawn haulers if we have storage or containers (RCL4+).
+        // Only spawn haulers if we have storage or containers.
+        // At RCL2, source containers enable static mining → hauler transport.
         const hasStorage = !!this.colony.storage;
         const hasContainers = this.colony.room.find(FIND_STRUCTURES, {
             filter: (s: Structure) => s.structureType === STRUCTURE_CONTAINER,
@@ -25,12 +27,10 @@ export class HaulerOverlord extends Overlord {
 
         if (!hasStorage && !hasContainers) return;
 
-        // Scale hauler count with structure load: 1 per container, min 2.
-        const containerCount = this.colony.room.find(FIND_STRUCTURES, {
-            filter: (s: Structure) => s.structureType === STRUCTURE_CONTAINER,
-        }).length;
-        const count = Math.max(2, containerCount);
-        this.requestCreep(hatchery, { role: 'hauler' } as any, 'hauler', count);
+        // Scale hauler count: 2 per source (to keep up with miner output),
+        // min 2 so the colony doesn't stall with 1 source.
+        const count = Math.max(2, this.colony.sources.length * 2);
+        this.requestCreep(hatchery, bodyFactory.PROFILES.hauler, 'hauler', count);
     }
 
     run(): void {
