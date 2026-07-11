@@ -69,11 +69,13 @@ export const comms = {
 
     // Read zh0ul's published status from the foreign segment.
     // The foreign segment is activated in main.ts on the comms interval.
+    // foreignSegment is undefined when no segment has been requested yet
+    // or the data hasn't arrived — guard against that.
     readAllyStatus(): AllyMessage | null {
-        const raw = RawMemory.foreignSegment.data;
-        if (!raw) return null;
+        const foreign = RawMemory.foreignSegment;
+        if (!foreign || !foreign.data) return null;
         try {
-            return JSON.parse(raw) as AllyMessage;
+            return JSON.parse(foreign.data) as AllyMessage;
         } catch (e) {
             console.log('[Comms] Failed to parse ally segment:', e);
             return null;
