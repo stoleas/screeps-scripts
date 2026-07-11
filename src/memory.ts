@@ -30,13 +30,40 @@ export const Mem = {
             }
         }
 
-        // Clean stale room memory
+        // Clean stale room memory — two-tier selective field expiry.
         if (Memory.rooms) {
             for (const roomName in Memory.rooms) {
-                if (!(roomName in Game.rooms) &&
-                    (!Memory.rooms[roomName].intel ||
-                     (Game.time - (Memory.rooms[roomName] as any).intel.tick > 5000))) {
+                const roomMem = Memory.rooms[roomName] as any;
+                if (!roomMem || !roomMem.intel) {
+                    // No intel — delete if we don't have vision.
+                    if (!(roomName in Game.rooms)) {
+                        delete Memory.rooms[roomName];
+                    }
+                    continue;
+                }
+
+                const intel = roomMem.intel;
+                const ticksSinceScan = Game.time - (intel.tick || 0);
+                const ticksSinceFastScan = Game.time - (intel.fastTick || 0);
+
+                // Pass 1: Zero out volatile fields if past 1000 ticks.
+                if (ticksSinceFastScan > 1000) {
+                    intel.hostileCount = 0;
+                    intel.dangerScore = 0;
+                    intel.hasTowerThreat = false;
+                    intel.hasHealers = false;
+                    intel.hasRanged = false;
+                }
+
+                // Pass 2: Delete the room entry entirely if we haven't seen
+                // it in 5000 ticks AND we don't own it.
+                if (ticksSinceScan > 5000 && !(roomName in Game.rooms)) {
+                    const room = Game.rooms[roomName];
+                    if (room && room.controller && room.controller.my) {
+                        continue;  // Never delete owned rooms
+                    }
                     delete Memory.rooms[roomName];
+                    console.log('[Mem] Dropped stale room intel:', roomName);
                 }
             }
         }
