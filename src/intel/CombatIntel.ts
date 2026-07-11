@@ -67,5 +67,12 @@ export class CombatIntel {
             }
             this.scanRoom(room);
         }
+
+        // If an Observer made a room visible this tick, log it for debugging.
+        if (Memory.nextExpectedRoom && Memory.nextExpectedRoom in Game.rooms) {
+            console.log(`[CombatIntel] Observer-observed room ${Memory.nextExpectedRoom} is now visible`);
+            // Clear the expectation — we've processed it.
+            Memory.nextExpectedRoom = undefined;
+        }
     }
 }

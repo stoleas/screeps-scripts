@@ -20,11 +20,12 @@ export const ALLIANCE = {
     signKeyword: 'ZERG_ALLIANCE',
 
     // Flag prefix for in-game ally discovery.
-    // Place a flag named "ally:zh0ul" in any room and the script will
-    // recognize "zh0ul" as an ally. Flags are owner-visible only, so
-    // each player places their own flags — but it's an easy in-game
-    // way to manage friends without editing code.
-    // Matches Overmind's name:id naming convention (lowercase).
+    // Place flags named "ally:<username>@<roomName>" in any room to mark
+    // that username as an ally. The @<roomName> suffix is required because
+    // Screeps flag names are globally unique — you can't place "ally:zh0ul"
+    // in two different rooms. Use "ally:zh0ul@W1N1", "ally:zh0ul@W2N3", etc.
+    // Both players import this file. Flags are owner-visible only.
+    // Legacy format "ally:<username>" (without @roomName) is still accepted.
     flagPrefix: 'ally:',
 
     // Rooms where both players have transit permissions or shared operations.
@@ -85,7 +86,19 @@ export function getFlagAllies(): Set<string> {
     const prefix = ALLIANCE.flagPrefix;
     for (const flagName in Game.flags) {
         if (flagName.startsWith(prefix)) {
-            const username = flagName.slice(prefix.length);
+            // Format: "ally:<username>@<roomName>" or legacy "ally:<username>"
+            // The @<roomName> suffix allows placing ally flags in multiple
+            // rooms without hitting ERR_NAME_EXISTS (flag names are globally
+            // unique in Screeps).
+            const suffix = flagName.slice(prefix.length);
+            let username: string;
+            const atIndex = suffix.indexOf('@');
+            if (atIndex !== -1) {
+                username = suffix.slice(0, atIndex);
+            } else {
+                // Legacy format: entire suffix is the username.
+                username = suffix;
+            }
             if (username) allies.add(username);
         }
     }

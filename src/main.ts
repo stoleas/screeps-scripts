@@ -20,6 +20,7 @@ import { CombatOverlord } from './overlords/combatOverlord';
 import { CombatIntel } from './intel/CombatIntel';
 import { ProfilerOutput } from './profiler/Profiler';
 import { StatsCollector } from './stats/StatsCollector';
+import { ObserverOverlord } from './observer/ObserverOverlord';
 
 export const loop = (): void => {
     // Memory management: init, CPU bucket gate, garbage collection.
@@ -43,16 +44,34 @@ export const loop = (): void => {
         comms.publishOurStatus();
     }
 
+    // Comms log throttle: only log ally status every N ticks to avoid console spam.
+    // Private server ticks are ~3-4s, so 100 ticks ≈ 5-6 minutes.
+    // MMO ticks are 2.5-5s, so 100 ticks ≈ 4-8 minutes.
+    const COMMS_LOG_INTERVAL = 100;
+
     // Read ally's status from foreign segment (available if requested last tick).
     const allyStatus = comms.readAllyStatus();
     if (allyStatus) {
+        // Only log ally status on the comms interval to avoid console spam.
+        // Without this gate, the log fires every tick (~4s on private server),
+        // producing hundreds of identical lines per hour.
+        const shouldLog = Game.time % COMMS_LOG_INTERVAL === 0;
+
         if (allyStatus.defenseRequests.length > 0) {
-            console.log(`[Comms] Ally ${allyStatus.player} requests defense:`,
-                allyStatus.defenseRequests.map(r => r.roomName).join(', '));
+            if (shouldLog) {
+                console.log(`[Comms] Ally ${allyStatus.player} requests defense:`,
+                    allyStatus.defenseRequests.map(r => r.roomName).join(', '));
+            }
         }
-        if (allyStatus.energyDeficits.length > 0) {
-            console.log(`[Comms] Ally ${allyStatus.player} energy deficits:`,
-                allyStatus.energyDeficits.map(d => `${d.roomName} (${d.energy})`).join(', '));
+        if (allyStatus.energyDeficits.length > 0 && shouldLog) {
+            // Filter: only log deficits where energy is actually below threshold
+            // AND the deficit is meaningful (energy < needed). Skip zero-energy
+            // rooms that spam the console with no actionable info.
+            const meaningful = allyStatus.energyDeficits.filter(d => d.energy < ALLIANCE.lowEnergyThreshold);
+            if (meaningful.length > 0) {
+                console.log(`[Comms] Ally ${allyStatus.player} energy deficits:`,
+                    meaningful.map(d => `${d.roomName} (${d.energy}/${ALLIANCE.lowEnergyThreshold})`).join(', '));
+            }
         }
     }
 
@@ -108,6 +127,7 @@ export const loop = (): void => {
             new HarvestOverlord(colony),
             new HaulerOverlord(colony, logistics),
             new CombatOverlord(colony),  // defensive
+            new ObserverOverlord(colony),  // RCL8 room scanning (no-op without Observer)
         ];
         // Upgrade and build overlords are non-essential when CPU is low.
         if (!PRODUCTION.isCpuWarning()) {
