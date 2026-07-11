@@ -3,6 +3,9 @@
 import { Task } from './task';
 import { Tasks } from './tasks';
 
+// Max ticks a task can stay active before it's considered stale.
+const TASK_TIMEOUT = 50;
+
 export const roleUpgrader = {
     run(creep: Creep): void {
         let task = Task.load(creep);
@@ -16,7 +19,8 @@ export const roleUpgrader = {
 
         if (task) {
             const result = task.run(creep);
-            if (result === OK || result === ERR_INVALID_TARGET) {
+            const age = Game.time - task.tick;
+            if (result === OK || result === ERR_INVALID_TARGET || age > TASK_TIMEOUT) {
                 creep.memory.task = null;
             }
         }

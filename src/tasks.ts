@@ -24,9 +24,13 @@ class TaskHarvest extends Task {
             if (creep.store.getFreeCapacity() === 0) {
                 return OK;  // full, task done
             }
+            // Source depleted (regenerating) — clear task so creep can find other work.
+            if (result === ERR_NOT_ENOUGH_RESOURCES) return ERR_INVALID_TARGET;
             return result === OK ? ERR_NOT_DONE : result;
         }
-        Movement.move(creep, target.pos, 1);
+        const moveResult = Movement.move(creep, target.pos, 1);
+        // No path to source — clear task so creep can try a different source.
+        if (moveResult === ERR_NO_PATH) return ERR_INVALID_TARGET;
         return ERR_NOT_IN_RANGE;
     }
 
@@ -85,7 +89,8 @@ class TaskUpgrade extends Task {
             }
             return result === OK ? ERR_NOT_DONE : result;
         }
-        Movement.move(creep, target.pos, 3);
+        const moveResult = Movement.move(creep, target.pos, 3);
+        if (moveResult === ERR_NO_PATH) return ERR_INVALID_TARGET;
         return ERR_NOT_IN_RANGE;
     }
 
@@ -114,7 +119,8 @@ class TaskBuild extends Task {
             }
             return result === OK ? ERR_NOT_DONE : result;
         }
-        Movement.move(creep, target.pos, 3);
+        const moveResult = Movement.move(creep, target.pos, 3);
+        if (moveResult === ERR_NO_PATH) return ERR_INVALID_TARGET;
         return ERR_NOT_IN_RANGE;
     }
 
