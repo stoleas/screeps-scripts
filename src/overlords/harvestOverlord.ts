@@ -39,14 +39,10 @@ export class HarvestOverlord extends Overlord {
 
     run(): void {
         const miners = this.creeps['miner'] || [];
-        for (const creep of miners) {
-            roleMiner.run(creep);
-        }
+        this.autoRun(miners, (creep) => roleMiner.taskHandler(creep));
 
         // Run any remaining mobile harvesters (bootstrap fallback).
         const harvesters = this.creeps['harvester'] || [];
-        for (const creep of harvesters) {
-            roleHarvester.run(creep);
-        }
+        this.autoRun(harvesters, (creep) => roleHarvester.taskHandler(creep));
     }
 }

@@ -35,23 +35,12 @@ export class HaulerOverlord extends Overlord {
 
     run(): void {
         const haulers = this.creeps['hauler'] || [];
-        for (const creep of haulers) {
-            let task = Task.load(creep);
-
-            if (!task) {
-                task = this.assignTask(creep);
-                if (task) {
-                    creep.memory.task = task.save();
-                }
-            }
-
+        this.autoRun(haulers, (creep) => {
+            const task = this.assignTask(creep);
             if (task) {
-                const result = task.run(creep);
-                if (result === OK || result === ERR_INVALID_TARGET) {
-                    creep.memory.task = null;
-                }
+                creep.memory.task = task.save();
             }
-        }
+        });
     }
 
     assignTask(creep: Creep): Task | null {

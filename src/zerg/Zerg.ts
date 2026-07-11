@@ -44,6 +44,23 @@ export class Zerg {
         return result;
     }
 
+    // isIdle: true when the creep has no task or its task is no longer valid.
+    // Used by Overlord.autoRun to decide whether to assign a new task.
+    // Gemini correction: adopt the isIdle + run() split, not a combined executeTask().
+    get isIdle(): boolean {
+        const task = this.task;
+        return !task || !task.isValid(this.creep);
+    }
+
+    // run: execute the current task if one exists. Returns the task result code.
+    // Does NOT clear the task on completion — that's handled by the caller
+    // (autoRun or the overlord) checking the return value.
+    run(): number | undefined {
+        const task = this.task;
+        if (!task) return undefined;
+        return task.run(this.creep);
+    }
+
     // Shorthand movement wrappers (delegates to Movement module when available).
     move(direction: DirectionConstant): number {
         return this.creep.move(direction);

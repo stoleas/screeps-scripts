@@ -6,6 +6,7 @@ import { Colony } from './colony';
 import { Priority } from './priorities';
 import { Hatchery } from './hatchery';
 import { CreepSetup } from './creepSetup';
+import { Zerg } from './zerg/Zerg';
 
 export abstract class Overlord {
     colony: Colony;
@@ -44,6 +45,25 @@ export abstract class Overlord {
                 role,
                 priority: this.priority,
             });
+        }
+    }
+
+    // autoRun: for each creep, if idle (no task or task invalid), call taskHandler
+    // to assign a new task. Then run the task. This replaces the manual
+    // Task.load → assignTask → task.run → clear pattern in each role file.
+    // Adopted from Overmind's Overlord.ts:autoRun pattern.
+    // Gemini correction: use isIdle + run() split, not executeTask().
+    autoRun(creeps: Creep[], taskHandler: (creep: Creep) => void): void {
+        for (const creep of creeps) {
+            const zerg = new Zerg(creep);
+            if (zerg.isIdle) {
+                taskHandler(creep);
+            }
+            const result = zerg.run();
+            // Clear task on completion or invalid target.
+            if (result === OK || result === ERR_INVALID_TARGET) {
+                creep.memory.task = null;
+            }
         }
     }
 

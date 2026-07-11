@@ -18,6 +18,7 @@ export class Colony {
     stage: ColonyStage;
     level: number;
     creeps: Creep[];
+    bootstrapping: boolean;
 
     constructor(room: Room) {
         this.name = room.name;
@@ -29,6 +30,7 @@ export class Colony {
         this.level = room.controller ? room.controller.level : 0;
         this.creeps = _.filter(Game.creeps, (c: Creep) => c.memory.colony === room.name);
         this.stage = this.storage ? (this.level >= 8 ? ColonyStage.Adult : ColonyStage.Pupa) : ColonyStage.Larva;
+        this.bootstrapping = false;
     }
 
     refresh(): void {
