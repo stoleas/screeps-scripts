@@ -21,7 +21,7 @@
 //   - setActiveForeignSegment(user, id) → requests ally's segment for next tick
 //   - RawMemory.foreignSegment → { username, id, data } from ally
 
-import { ALLIANCE, isAlly, isAllyBySign } from './alliance';
+import { ALLIANCE, isAlly, isAllyBySign, isAllyByFlag } from './alliance';
 
 export interface DefenseRequest {
     roomName: string;
@@ -92,6 +92,7 @@ export const comms = {
             const hostiles = room.find(FIND_HOSTILE_CREEPS, {
                 filter: (c: Creep) => {
                     if (isAlly(c.owner.username)) return false;
+                    if (isAllyByFlag(c.owner.username)) return false;
                     const signAlly = isAllyBySign(room);
                     if (signAlly && c.owner.username === signAlly) return false;
                     return true;

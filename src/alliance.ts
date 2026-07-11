@@ -19,6 +19,14 @@ export const ALLIANCE = {
     // Both players must agree on the keyword and keep it secret.
     signKeyword: 'ZERG_ALLIANCE',
 
+    // Flag prefix for in-game ally discovery.
+    // Place a flag named "ally:zh0ul" in any room and the script will
+    // recognize "zh0ul" as an ally. Flags are owner-visible only, so
+    // each player places their own flags — but it's an easy in-game
+    // way to manage friends without editing code.
+    // Matches Overmind's name:id naming convention (lowercase).
+    flagPrefix: 'ally:',
+
     // Rooms where both players have transit permissions or shared operations.
     // Used by scouting/defense logic to allow allied creeps to pass through.
     sharedRooms: [
@@ -42,7 +50,7 @@ export const ALLIANCE = {
 };
 
 // --- Ally detection -------------------------------------------------
-// Two mechanisms: static list (allies array) and dynamic sign-based discovery.
+// Three mechanisms: static list, controller signs, and in-game flags.
 
 // Check if a username is an ally via the static allies list.
 export function isAlly(username: string): boolean {
@@ -63,10 +71,40 @@ export function isAllyBySign(room: Room): string | null {
     return null;
 }
 
-// Combined check: is a username an ally via static list OR has the
-// username signed a visible controller with the keyword?
+// Scan Game.flags for names like "Ally:zh0ul" and return the set of
+// ally usernames discovered. Flags are owner-visible only — each
+// player places their own flags in-game to manage their friend list.
+// Call this once per tick and cache the result.
+let _flagAlliesCache: { tick: number; allies: Set<string> } = { tick: -1, allies: new Set() };
+
+export function getFlagAllies(): Set<string> {
+    if (_flagAlliesCache.tick === Game.time) {
+        return _flagAlliesCache.allies;
+    }
+    const allies = new Set<string>();
+    const prefix = ALLIANCE.flagPrefix;
+    for (const flagName in Game.flags) {
+        if (flagName.startsWith(prefix)) {
+            const username = flagName.slice(prefix.length);
+            if (username) allies.add(username);
+        }
+    }
+    _flagAlliesCache = { tick: Game.time, allies };
+    return allies;
+}
+
+// Check if a username is an ally via in-game flags.
+export function isAllyByFlag(username: string): boolean {
+    return getFlagAllies().has(username);
+}
+
+// Combined check: is a username an ally via any mechanism?
+// - Static allies list
+// - Controller sign (if visibleRooms provided)
+// - In-game flags (Ally:username)
 export function isFriend(username: string, visibleRooms?: Room[]): boolean {
     if (isAlly(username)) return true;
+    if (isAllyByFlag(username)) return true;
     if (visibleRooms) {
         for (const room of visibleRooms) {
             const signedBy = isAllyBySign(room);

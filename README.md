@@ -14,7 +14,7 @@ Deploy: copy `dist/main.js` to your Steam client's watch directory.
 
 ## Alliance Configuration
 
-Two mechanisms for friend detection:
+Three mechanisms for friend detection:
 
 ### 1. Static allies list (`src/alliance.ts`)
 
@@ -38,6 +38,22 @@ When your script scouts a room, it reads `controller.sign.text`. If it
 matches the keyword, `controller.sign.username` is recognized as a friend
 — towers won't attack them, healers will heal their creeps. This lets you
 add new allies without editing code: they just sign their controller.
+
+### 3. In-game flags (dynamic, easiest)
+
+Place a flag named `ally:<username>` in any room:
+
+```
+ally:zh0ul
+ally:stoleas
+```
+
+The script scans `Game.flags` for names starting with `ally:` and
+recognizes the rest of the name as an ally. Flags are owner-visible only
+— each player places their own flags to manage their friend list.
+
+No code changes needed to add or remove friends — just place or remove
+flags in-game. Matches Overmind's `name:id` naming convention.
 
 ## Architecture
 
