@@ -2,7 +2,7 @@
 
 import { Mem } from './memory';
 import { Colony } from './colony';
-import { ALLIANCE } from './alliance';
+import { ALLIANCE, getFlagAllies } from './alliance';
 import { towerDefense } from './tower';
 import { comms } from './comms';
 import { terminalNetwork } from './terminal';
@@ -19,6 +19,10 @@ export const loop = (): void => {
     Mem.load();
     if (!Mem.shouldRun()) return;
     Mem.clean();
+
+    // Scan in-game flags for ally:username entries. This populates the
+    // per-tick cache used by tower IFF and comms, and logs when the set changes.
+    getFlagAllies();
 
     // Alliance: activate our outbound segment and request zh0ul's foreign
     // segment on interval. Data arrives next tick in RawMemory.segments
