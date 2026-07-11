@@ -167,18 +167,31 @@ export const visualizer = {
                 counts[role] = (counts[role] || 0) + 1;
             }
         }
-        // Target counts (matches main.ts TARGETS + hauler).
-        const targets: { [role: string]: number } = {
-            harvester: 2,
-            upgrader: 1,
-            builder: 1,
-            hauler: 2,
-        };
-        const roles = Object.keys(targets);
-        return roles.map(r => ({
-            name: r,
-            current: counts[r] || 0,
-            target: targets[r],
+
+        // All known role types (ensures every role shows up even at 0).
+        // Target counts are now dynamic (overlord-computed), so we show
+        // approximate expected counts for display purposes only.
+        const knownRoles: { name: string; target: number }[] = [
+            { name: 'miner', target: room.find(FIND_SOURCES).length },
+            { name: 'harvester', target: 0 },  // bootstrap fallback only
+            { name: 'hauler', target: 2 },
+            { name: 'upgrader', target: 2 },
+            { name: 'builder', target: 1 },
+            { name: 'brawler', target: 0 },
+        ];
+
+        // Merge: show all known roles, plus any unknown roles that exist.
+        const seen = new Set(knownRoles.map(r => r.name));
+        const extra = Object.keys(counts).filter(r => !seen.has(r));
+
+        const result = knownRoles.map(r => ({
+            name: r.name,
+            current: counts[r.name] || 0,
+            target: r.target,
         }));
+        for (const role of extra) {
+            result.push({ name: role, current: counts[role], target: 0 });
+        }
+        return result;
     },
 };

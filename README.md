@@ -29,9 +29,18 @@ Both players sign their controllers with the same secret keyword:
 signKeyword: 'ZERG_ALLIANCE'
 ```
 
-In-game, have a creep sign your controller:
+In-game, have a creep sign your controller. The in-game console doesn't expose
+a `creep` variable — you must look one up by name first:
+
 ```javascript
-creep.signController(creep.room.controller, 'ZERG_ALLIANCE')
+// Find a creep in the room (replace with an actual creep name from your UI)
+const c = Game.creeps['YourCreepNameHere']
+c.signController(c.room.controller, 'ZERG_ALLIANCE')
+```
+
+Or as a one-liner:
+```javascript
+Game.creeps['YourCreepNameHere'].signController(Game.creeps['YourCreepNameHere'].room.controller, 'ZERG_ALLIANCE')
 ```
 
 When your script scouts a room, it reads `controller.sign.text`. If it
@@ -76,10 +85,10 @@ flags in-game. Matches Overmind's `name:id` naming convention.
 ## Phase Progress
 
 - **Phase 0** ✅ TypeScript + Rollup toolchain
-- **Phase 1** ✅ Foundation patterns (CreepSetup, Tasks, Mem, GlobalCache)
-- **Phase 2** ✅ Architecture (Colony, Overlord, Hatchery, RoomPlanner)
-- **Phase 3** 🔧 Coop alliance (alliance, IFF, comms, terminal, MMO hardening)
-- **Phase 4** ⬜ Mid-game (HiveClusters, Logistics, Zerg, Movement, RCL5-8)
+- **Phase 1.1** ✅ Overmind setup (Colony, Overlord, Hatchery, RoomPlanner)
+- **Phase 1.2** ✅ Economy (miner/hauler split, AlertEmitter, AutomationConsumer)
+- **Phase 1.3** ✅ Colony maintenance (bootstrap, safe mode, repair/fortify, Zerg, LinkNetwork)
+- **Phase 4** ⬜ Mid-game (HiveClusters, Logistics, RCL5-8)
 - **Phase 5** ⬜ Military + profiling
 
 See `obsidian/personal/games/screeps/overmind-adoption-plan.md` for the full plan.
