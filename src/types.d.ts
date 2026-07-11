@@ -37,6 +37,8 @@ declare const global: any;
 // Augment Memory with optional stats field used by Mem.load().
 interface Memory {
     stats?: any;
+    observers?: { [key: string]: { targets: string[]; lastIndex: number } };
+    nextExpectedRoom?: string;
 }
 
 // Augment RoomMemory with optional intel field used by CombatIntel.
