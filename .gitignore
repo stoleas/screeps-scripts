@@ -2,3 +2,6 @@ node_modules/
 dist/
 screeps.json
 *.log
+
+# screeps-grafana — external metrics pipeline (self-hosted)
+metrics/
