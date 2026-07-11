@@ -213,6 +213,107 @@ class TaskDrop extends Task {
 }
 Task.register('drop', TaskDrop);
 
+// --- Repair task ---
+// TaskRepair: repair a damaged structure to full hits.
+// Includes isValidTask/isValidTarget split per Overmind's Task architecture.
+class TaskRepair extends Task {
+    constructor(target: Structure) {
+        super('repair', target);
+        this.settings.range = 3;
+    }
+
+    isValidTask(creep: Creep): boolean {
+        return creep.store[RESOURCE_ENERGY] > 0;
+    }
+
+    isValidTarget(): boolean {
+        const target = this.getTarget() as Structure | null;
+        return !!target && target.hits < target.hitsMax;
+    }
+
+    run(creep: Creep): number {
+        const target = this.getTarget() as Structure | null;
+        if (!target || target.hits >= target.hitsMax) return ERR_INVALID_TARGET;
+        if (creep.store[RESOURCE_ENERGY] === 0) return OK; // out of energy
+        if (creep.pos.inRangeTo(target, 3)) {
+            const result = creep.repair(target);
+            return result === OK ? ERR_NOT_DONE : result;
+        }
+        const moveResult = Movement.move(creep, target.pos, 3);
+        if (moveResult === ERR_NO_PATH) return ERR_INVALID_TARGET;
+        return ERR_NOT_IN_RANGE;
+    }
+
+    static fromMemory(saved: SavedTask): TaskRepair {
+        const task = Object.create(TaskRepair.prototype);
+        Object.assign(task, saved);
+        return task;
+    }
+}
+Task.register('repair', TaskRepair);
+
+// --- Fortify task ---
+// TaskFortify: repair walls/ramparts up to a hits cap (not hitsMax, which is
+// absurdly high for walls). Same repair() call, different semantic — the
+// target's hits is compared against a cap stored in data.hitsCap.
+class TaskFortify extends Task {
+    constructor(target: Structure, hitsCap: number) {
+        super('fortify', target);
+        this.settings.range = 3;
+        this.data.hitsCap = hitsCap;
+    }
+
+    run(creep: Creep): number {
+        const target = this.getTarget() as Structure | null;
+        if (!target) return ERR_INVALID_TARGET;
+        const cap = this.data.hitsCap as number;
+        if (target.hits >= cap) return OK; // reached fortify cap
+        if (creep.store[RESOURCE_ENERGY] === 0) return OK; // out of energy
+        if (creep.pos.inRangeTo(target, 3)) {
+            const result = creep.repair(target);
+            if (target.hits >= cap) return OK;
+            return result === OK ? ERR_NOT_DONE : result;
+        }
+        const moveResult = Movement.move(creep, target.pos, 3);
+        if (moveResult === ERR_NO_PATH) return ERR_INVALID_TARGET;
+        return ERR_NOT_IN_RANGE;
+    }
+
+    static fromMemory(saved: SavedTask): TaskFortify {
+        const task = Object.create(TaskFortify.prototype);
+        Object.assign(task, saved);
+        return task;
+    }
+}
+Task.register('fortify', TaskFortify);
+
+// --- GoTo task ---
+// TaskGoTo: move creep to an arbitrary RoomPosition. Task completes when
+// the creep is within the specified range. No target object — uses a
+// synthetic target with the position only.
+class TaskGoTo extends Task {
+    constructor(target: RoomPosition, range = 1) {
+        super('goTo', { id: 'goTo', pos: target });
+        this.settings.range = range;
+    }
+
+    run(creep: Creep): number {
+        const pos = this.targetPos;
+        if (!pos) return ERR_INVALID_TARGET;
+        if (creep.pos.inRangeTo(pos, this.settings.range)) return OK;
+        const result = Movement.move(creep, pos, this.settings.range);
+        if (result === ERR_NO_PATH) return ERR_INVALID_TARGET;
+        return ERR_NOT_IN_RANGE;
+    }
+
+    static fromMemory(saved: SavedTask): TaskGoTo {
+        const task = Object.create(TaskGoTo.prototype);
+        Object.assign(task, saved);
+        return task;
+    }
+}
+Task.register('goTo', TaskGoTo);
+
 // --- Tasks factory ---
 export const Tasks = {
     harvest: (target: Source) => new TaskHarvest(target),
@@ -222,6 +323,9 @@ export const Tasks = {
     withdraw: (target: Structure, resource?: ResourceConstant) => new TaskWithdraw(target, resource),
     drop: (target: { pos: RoomPosition }) => new TaskDrop(target),
     pickup: (target: Resource) => new TaskPickup(target),
+    repair: (target: Structure) => new TaskRepair(target),
+    fortify: (target: Structure, hitsCap: number) => new TaskFortify(target, hitsCap),
+    goTo: (target: RoomPosition, range?: number) => new TaskGoTo(target, range),
 
     chain(tasks: Task[]): Task | null {
         if (tasks.length === 0) return null;

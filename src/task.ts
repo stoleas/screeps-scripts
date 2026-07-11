@@ -77,6 +77,24 @@ export abstract class Task {
         };
     }
 
+    // isValidTask: return true if the creep can continue this task
+    // (e.g., has energy for repair/build). Override in subclasses.
+    isValidTask(_creep: Creep): boolean {
+        return true;
+    }
+
+    // isValidTarget: return true if the target is still valid for this task
+    // (e.g., structure still damaged). Override in subclasses.
+    isValidTarget(): boolean {
+        return !!this.getTarget();
+    }
+
+    // isValid: composite check used by Zerg.isIdle to determine if a creep
+    // needs a new task assignment. Returns true when the task is still actionable.
+    isValid(creep: Creep): boolean {
+        return this.isValidTask(creep) && this.isValidTarget();
+    }
+
     abstract run(creep: Creep): number;
 
     static register(name: string, ctor: { fromMemory: (saved: SavedTask) => Task }): void {

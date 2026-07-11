@@ -4,17 +4,31 @@ import { Task } from './task';
 import { Tasks } from './tasks';
 import { cache } from './cache';
 
+// roleHarvester: taskHandler for mobile harvesters (bootstrap fallback).
+// Called via Overlord.autoRun(creeps, roleHarvester.taskHandler).
+// The autoRun pattern handles task load/save/clear — this function only
+// assigns a new task when the creep is idle.
+
 export const roleHarvester = {
+    // Task handler: called by autoRun when the creep has no valid task.
+    // Assigns harvest → transfer to spawn/extension (legacy mode) or
+    // harvest → drop to container (static mode).
+    taskHandler(creep: Creep): void {
+        const task = this.assignTask(creep);
+        if (task) {
+            creep.memory.task = task.save();
+        }
+    },
+
+    // Direct run() for backward compatibility (e.g. BootstrapOverlord).
     run(creep: Creep): void {
         let task = Task.load(creep);
-
         if (!task) {
             task = this.assignTask(creep);
             if (task) {
                 creep.memory.task = task.save();
             }
         }
-
         if (task) {
             const result = task.run(creep);
             if (result === OK || result === ERR_INVALID_TARGET) {
@@ -44,7 +58,6 @@ export const roleHarvester = {
                 }
             }
             // Not on the container yet — only harvest if we have room.
-            // If full, fall through to legacy mode to dump energy.
             if (creep.store.getFreeCapacity() > 0) {
                 return Tasks.harvest(source);
             }

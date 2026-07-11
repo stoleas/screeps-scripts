@@ -7,18 +7,26 @@ import { cache } from './cache';
 // Static miner: moves to a container adjacent to a source, then harvests
 // and drops energy onto the container. No CARRY parts — pure WORK+MOVE.
 // Haulers pick up from the container via the logistics network.
+//
+// Called via Overlord.autoRun(creeps, roleMiner.taskHandler).
 
 export const roleMiner = {
+    taskHandler(creep: Creep): void {
+        const task = this.assignTask(creep);
+        if (task) {
+            creep.memory.task = task.save();
+        }
+    },
+
+    // Direct run() for backward compatibility.
     run(creep: Creep): void {
         let task = Task.load(creep);
-
         if (!task) {
             task = this.assignTask(creep);
             if (task) {
                 creep.memory.task = task.save();
             }
         }
-
         if (task) {
             const result = task.run(creep);
             if (result === OK || result === ERR_INVALID_TARGET) {

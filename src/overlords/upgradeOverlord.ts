@@ -13,16 +13,23 @@ export class UpgradeOverlord extends Overlord {
     }
 
     init(hatchery: Hatchery): void {
-        // 3 upgraders: 6 e/t into controller (3×2W each).
-        // With static miners saturating 20 e/t source income, 3 upgraders
-        // consume 6 e/t → 45,000/6 = 7,500 ticks ≈ 5.2h to RCL3 (~3x speedup).
-        this.requestCreep(hatchery, bodyFactory.PROFILES.upgrader, 'upgrader', 3);
+        let count: number;
+        if (this.colony.storage) {
+            const energy = this.colony.storage.store[RESOURCE_ENERGY] || 0;
+            // Overmind: upgradePowerNeeded = 1 + floor((assets.energy - 100000 buffer) / 10000)
+            // The 100k buffer prevents starving spawn/defense/construction during energy crises.
+            const excess = Math.max(energy - 100000, 0);
+            count = 1 + Math.floor(excess / 10000);
+            count = Math.min(count, 6); // cap at 6 for RCL2-7 (Overmind caps at 15 for RCL8)
+        } else {
+            // No storage: fixed 2 (RCL2-3 early game).
+            count = 2;
+        }
+        this.requestCreep(hatchery, bodyFactory.PROFILES.upgrader, 'upgrader', count);
     }
 
     run(): void {
         const upgraders = this.creeps['upgrader'] || [];
-        for (const creep of upgraders) {
-            roleUpgrader.run(creep);
-        }
+        this.autoRun(upgraders, (creep) => roleUpgrader.taskHandler(creep));
     }
 }

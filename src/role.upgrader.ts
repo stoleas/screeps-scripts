@@ -6,17 +6,25 @@ import { Tasks } from './tasks';
 // Max ticks a task can stay active before it's considered stale.
 const TASK_TIMEOUT = 50;
 
+// roleUpgrader: taskHandler for upgraders.
+// Called via Overlord.autoRun(creeps, roleUpgrader.taskHandler).
 export const roleUpgrader = {
+    taskHandler(creep: Creep): void {
+        const task = this.assignTask(creep);
+        if (task) {
+            creep.memory.task = task.save();
+        }
+    },
+
+    // Direct run() for backward compatibility.
     run(creep: Creep): void {
         let task = Task.load(creep);
-
         if (!task) {
             task = this.assignTask(creep);
             if (task) {
                 creep.memory.task = task.save();
             }
         }
-
         if (task) {
             const result = task.run(creep);
             const age = Game.time - task.tick;

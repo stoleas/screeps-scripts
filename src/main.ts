@@ -1,7 +1,7 @@
 'use strict';
 
 import { Mem } from './memory';
-import { Colony } from './colony';
+import { Colony, ColonyStage } from './colony';
 import { ALLIANCE, getFlagAllies, autoFlagAllies } from './alliance';
 import { comms } from './comms';
 import { terminalNetwork } from './terminal';
@@ -11,10 +11,12 @@ import { HarvestOverlord } from './overlords/harvestOverlord';
 import { UpgradeOverlord } from './overlords/upgradeOverlord';
 import { BuildOverlord } from './overlords/buildOverlord';
 import { HaulerOverlord } from './overlords/haulOverlord';
+import { BootstrapOverlord } from './overlords/bootstrapOverlord';
 import { Overlord } from './overlord';
 import { roomPlanner } from './roomPlanner';
 import { SporeCrawler } from './hiveClusters/sporeCrawler';
 import { LogisticsNetwork } from './logistics/LogisticsNetwork';
+import { LinkNetwork } from './logistics/LinkNetwork';
 import { visualizer } from './visualizer';
 import { CombatOverlord } from './overlords/combatOverlord';
 import { CombatIntel } from './intel/CombatIntel';
@@ -129,17 +131,36 @@ export const loop = (): void => {
         const logistics = new LogisticsNetwork(colony);
         logistics.refresh();
 
+        // Link network: greedy matching for link-to-link energy transfers (RCL6+).
+        // Separate from LogisticsNetwork — links are instant and CPU-cheap.
+        const links = colony.room.find<StructureLink>(FIND_MY_STRUCTURES, {
+            filter: (s: Structure) => s.structureType === STRUCTURE_LINK,
+        });
+        if (links.length >= 2) {
+            const linkNetwork = new LinkNetwork(colony);
+            linkNetwork.refresh();
+            linkNetwork.run();
+        }
+
         // Build overlords for this colony.
-        const overlords: Overlord[] = [
-            new HarvestOverlord(colony),
-            new HaulerOverlord(colony, logistics),
-            new CombatOverlord(colony),  // defensive
-            new ObserverOverlord(colony),  // RCL8 room scanning (no-op without Observer)
-        ];
-        // Upgrade and build overlords are non-essential when CPU is low.
-        if (!PRODUCTION.isCpuWarning()) {
-            overlords.push(new UpgradeOverlord(colony));
-            overlords.push(new BuildOverlord(colony));
+        // Bootstrap check: if colony has zero creeps or zero harvesters/miners,
+        // enter emergency bootstrap mode — suppress normal overlords.
+        colony.bootstrapping = BootstrapOverlord.needsBootstrap(colony);
+
+        const overlords: Overlord[] = [];
+        if (colony.bootstrapping) {
+            // Emergency mode: only BootstrapOverlord runs.
+            overlords.push(new BootstrapOverlord(colony));
+        } else {
+            overlords.push(new HarvestOverlord(colony));
+            overlords.push(new HaulerOverlord(colony, logistics));
+            overlords.push(new CombatOverlord(colony));  // defensive
+            overlords.push(new ObserverOverlord(colony));  // RCL8 room scanning (no-op without Observer)
+            // Upgrade and build overlords are non-essential when CPU is low.
+            if (!PRODUCTION.isCpuWarning()) {
+                overlords.push(new UpgradeOverlord(colony));
+                overlords.push(new BuildOverlord(colony));
+            }
         }
 
         // Refresh creep assignments, request spawns, then run.
@@ -167,6 +188,12 @@ export const loop = (): void => {
 
         // RoomVisual dashboard (client-side rendering, near-zero server CPU).
         visualizer.run(colony.room);
+
+        // Safe mode auto-activation: detect hostile attack on critical structures.
+        // Skip at Larva stage (RCL 1-3) — too early to waste safe mode.
+        if (colony.stage !== ColonyStage.Larva) {
+            handleSafeMode(colony);
+        }
     }
 
     // Auto-place ally:<username>@<roomName> flags in owned rooms and rooms
@@ -214,3 +241,48 @@ export const loop = (): void => {
     // Collect metrics for external Grafana pipeline. Runs every 10 ticks.
     StatsCollector.collect();
 };
+
+// Safe mode auto-activation: trigger when hostile creeps with attack/work
+// parts are within range 2 of a Spawn, Storage, or Tower AND that structure
+// is taking damage (hits < hitsMax). Redesigned per Gemini feedback —
+// dangerScore>5 is too volatile (scouts/edge-traversers cause false positives).
+// Adapted from Overmind's Overseer.handleSafeMode.
+function handleSafeMode(colony: Colony): void {
+    const controller = colony.controller;
+    if (!controller) return;
+    // Already in safe mode or none available.
+    if (controller.safeMode) return;
+    if (controller.safeModeAvailable <= 0) return;
+
+    const room = colony.room;
+
+    // Find hostiles with attack or work parts.
+    const hostiles = room.find(FIND_HOSTILE_CREEPS, {
+        filter: (c: Creep) => {
+            return c.body.some(p => p.type === ATTACK || p.type === WORK);
+        },
+    });
+    if (hostiles.length === 0) return;
+
+    // Check if any hostile is within range 2 of a critical structure
+    // that is currently taking damage.
+    const criticalStructures = room.find(FIND_MY_STRUCTURES, {
+        filter: (s: Structure) =>
+            (s.structureType === STRUCTURE_SPAWN ||
+             s.structureType === STRUCTURE_STORAGE ||
+             s.structureType === STRUCTURE_TOWER) &&
+            s.hits < s.hitsMax,
+    });
+
+    for (const hostile of hostiles) {
+        for (const struct of criticalStructures) {
+            if (hostile.pos.inRangeTo(struct.pos, 2)) {
+                const result = controller.activateSafeMode();
+                if (result === OK) {
+                    console.log(`[SafeMode] Activated in ${room.name} — ${hostiles.length} hostile(s), ${struct.structureType} under attack`);
+                }
+                return;
+            }
+        }
+    }
+}

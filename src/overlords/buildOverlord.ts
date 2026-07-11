@@ -5,7 +5,20 @@ import { Colony } from '../colony';
 import { Priority } from '../priorities';
 import { Hatchery } from '../hatchery';
 import { bodyFactory } from '../bodyFactory';
-import { roleBuilder } from '../role.builder';
+import { roleBuilder, BuilderConfig } from '../role.builder';
+
+// RCL-scaled barrier hits caps (from Overmind's WorkerOverlord.settings).
+// Prevents workers from getting stuck repairing walls/ramparts infinitely.
+function barrierHitsCap(rcl: number): number {
+    if (rcl <= 2) return 3000;
+    if (rcl === 3) return 10000;
+    if (rcl === 4) return 50000;
+    return 100000; // RCL5+
+}
+
+// Don't fortify barriers unless colony has > this much energy in storage.
+// Overmind uses 500k; we lower to 100k for RCL2-3 scale.
+const FORTIFY_DUTY_THRESHOLD = 100000;
 
 export class BuildOverlord extends Overlord {
     constructor(colony: Colony) {
@@ -21,8 +34,11 @@ export class BuildOverlord extends Overlord {
 
     run(): void {
         const builders = this.creeps['builder'] || [];
-        for (const creep of builders) {
-            roleBuilder.run(creep);
-        }
+        const config: BuilderConfig = {
+            barrierHitsCap: barrierHitsCap(this.colony.level),
+            fortifyDutyThreshold: FORTIFY_DUTY_THRESHOLD,
+            colony: this.colony,
+        };
+        this.autoRun(builders, (creep) => roleBuilder.taskHandler(creep, config));
     }
 }
