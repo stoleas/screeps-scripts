@@ -12,6 +12,7 @@ interface CreepMemory {
     upgrading?: boolean;
     building?: boolean;
     task?: any;
+    _moveData?: { lastPos?: { x: number; y: number; roomName: string }; stuckCount?: number };
 }
 
 // Screeps provides a global `console` at runtime but @types/screeps does

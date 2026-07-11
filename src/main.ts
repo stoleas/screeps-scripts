@@ -3,7 +3,6 @@
 import { Mem } from './memory';
 import { Colony } from './colony';
 import { ALLIANCE, getFlagAllies } from './alliance';
-import { towerDefense } from './tower';
 import { comms } from './comms';
 import { terminalNetwork } from './terminal';
 import { PRODUCTION } from './production';
@@ -11,8 +10,12 @@ import { Hatchery } from './hatchery';
 import { HarvestOverlord } from './overlords/harvestOverlord';
 import { UpgradeOverlord } from './overlords/upgradeOverlord';
 import { BuildOverlord } from './overlords/buildOverlord';
+import { HaulerOverlord } from './overlords/haulOverlord';
 import { Overlord } from './overlord';
 import { roomPlanner } from './roomPlanner';
+import { SporeCrawler } from './hiveClusters/sporeCrawler';
+import { LogisticsNetwork } from './logistics/LogisticsNetwork';
+import { visualizer } from './visualizer';
 
 export const loop = (): void => {
     // Memory management: init, CPU bucket gate, garbage collection.
@@ -49,14 +52,6 @@ export const loop = (): void => {
         }
     }
 
-    // Tower defense for every owned room (IFF-filtered).
-    for (const roomName in Game.rooms) {
-        const room = Game.rooms[roomName];
-        if (room.controller && room.controller.my) {
-            towerDefense.run(room);
-        }
-    }
-
     // Terminal network: ship energy to allies under siege or in deficit.
     terminalNetwork.run();
 
@@ -77,9 +72,9 @@ export const loop = (): void => {
         }
     }
 
-    // Per-colony: plan containers, build overlords, spawn via hatchery,
-    // then run overlord logic. CPU gate: harvest+spawn always run;
-    // build+upgrade+room-planning only run when bucket is healthy.
+    // Per-colony: plan containers, run SporeCrawler (towers), build LogisticsNetwork,
+    // build overlords, spawn via hatchery, run overlord logic, render visualizer.
+    // CPU gate: harvest+spawn always run; build+upgrade+room-planning only when bucket healthy.
     for (const colony of colonies) {
         // Room planning: place structures from bunker layout.
         // Skipped when CPU bucket is low (non-essential).
@@ -87,9 +82,24 @@ export const loop = (): void => {
             roomPlanner.plan(colony.room);
         }
 
+        // SporeCrawler: tower defense with IFF (replaces flat towerDefense module).
+        const primaryTower = colony.room.find<StructureTower>(FIND_MY_STRUCTURES, {
+            filter: (s: Structure) => s.structureType === STRUCTURE_TOWER,
+        })[0];
+        if (primaryTower) {
+            const sporeCrawler = new SporeCrawler(colony, primaryTower);
+            sporeCrawler.refresh();
+            sporeCrawler.run();
+        }
+
+        // Logistics network: register provide/request nodes for hauler routing.
+        const logistics = new LogisticsNetwork(colony);
+        logistics.refresh();
+
         // Build overlords for this colony.
         const overlords: Overlord[] = [
             new HarvestOverlord(colony),
+            new HaulerOverlord(colony, logistics),
         ];
         // Upgrade and build overlords are non-essential when CPU is low.
         if (!PRODUCTION.isCpuWarning()) {
@@ -119,5 +129,8 @@ export const loop = (): void => {
                 });
             }
         }
+
+        // RoomVisual dashboard (client-side rendering, near-zero server CPU).
+        visualizer.run(colony.room);
     }
 };

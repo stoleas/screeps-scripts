@@ -1,14 +1,13 @@
 'use strict';
 
-// Overmind's custom "task not done yet" sentinel. Must be a real runtime
-// value — a `declare const` in types.d.ts compiles to nothing at runtime,
-// which makes every `return ERR_NOT_DONE` throw ReferenceError.
+import { Task, SavedTask } from './task';
+import { Movement } from './movement/Movement';
+
+// Custom "task not done yet" sentinel. Must be a real runtime value.
 const ERR_NOT_DONE = -4;
 
 // Concrete Task implementations adapted from Overmind's tasks/instances/*.
-// Each task: harvest, transfer, upgrade, build, withdraw, drop.
-
-import { Task, SavedTask } from './task';
+// Each task: harvest, transfer, upgrade, build, withdraw, drop, pickup.
 
 // --- Harvest task ---
 class TaskHarvest extends Task {
@@ -27,7 +26,7 @@ class TaskHarvest extends Task {
             }
             return result === OK ? ERR_NOT_DONE : result;
         }
-        creep.moveTo(target, { visualizePathStyle: { stroke: '#ffaa00' } });
+        Movement.move(creep, target.pos, 1);
         return ERR_NOT_IN_RANGE;
     }
 
@@ -57,7 +56,7 @@ class TaskTransfer extends Task {
             }
             return result;
         }
-        creep.moveTo(target, { visualizePathStyle: { stroke: '#ffffff' } });
+        Movement.move(creep, target.pos, 1);
         return ERR_NOT_IN_RANGE;
     }
 
@@ -86,7 +85,7 @@ class TaskUpgrade extends Task {
             }
             return result === OK ? ERR_NOT_DONE : result;
         }
-        creep.moveTo(target, { visualizePathStyle: { stroke: '#ffffff' } });
+        Movement.move(creep, target.pos, 3);
         return ERR_NOT_IN_RANGE;
     }
 
@@ -115,7 +114,7 @@ class TaskBuild extends Task {
             }
             return result === OK ? ERR_NOT_DONE : result;
         }
-        creep.moveTo(target, { visualizePathStyle: { stroke: '#ffffff' } });
+        Movement.move(creep, target.pos, 3);
         return ERR_NOT_IN_RANGE;
     }
 
@@ -145,7 +144,7 @@ class TaskWithdraw extends Task {
             }
             return result;
         }
-        creep.moveTo(target, { visualizePathStyle: { stroke: '#ffaa00' } });
+        Movement.move(creep, target.pos, 1);
         return ERR_NOT_IN_RANGE;
     }
 
@@ -156,6 +155,35 @@ class TaskWithdraw extends Task {
     }
 }
 Task.register('withdraw', TaskWithdraw);
+
+// --- Pickup task (for dropped resources) ---
+class TaskPickup extends Task {
+    constructor(target: Resource) {
+        super('pickup', target);
+        this.settings.range = 1;
+    }
+
+    run(creep: Creep): number {
+        const target = this.getTarget() as Resource | null;
+        if (!target) return ERR_INVALID_TARGET;
+        if (creep.pos.inRangeTo(target, 1)) {
+            const result = creep.pickup(target);
+            if (result === OK || creep.store.getFreeCapacity() === 0) {
+                return OK;
+            }
+            return ERR_NOT_DONE;
+        }
+        Movement.move(creep, target.pos, 1);
+        return ERR_NOT_IN_RANGE;
+    }
+
+    static fromMemory(saved: SavedTask): TaskPickup {
+        const task = Object.create(TaskPickup.prototype);
+        Object.assign(task, saved);
+        return task;
+    }
+}
+Task.register('pickup', TaskPickup);
 
 // --- Drop task ---
 class TaskDrop extends Task {
@@ -187,6 +215,7 @@ export const Tasks = {
     build: (target: ConstructionSite) => new TaskBuild(target),
     withdraw: (target: Structure, resource?: ResourceConstant) => new TaskWithdraw(target, resource),
     drop: (target: { pos: RoomPosition }) => new TaskDrop(target),
+    pickup: (target: Resource) => new TaskPickup(target),
 
     chain(tasks: Task[]): Task | null {
         if (tasks.length === 0) return null;
