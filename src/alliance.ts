@@ -71,10 +71,10 @@ export function isAllyBySign(room: Room): string | null {
     return null;
 }
 
-// Scan Game.flags for names like "Ally:zh0ul" and return the set of
+// Scan Game.flags for names like "ally:zh0ul" and return the set of
 // ally usernames discovered. Flags are owner-visible only — each
 // player places their own flags in-game to manage their friend list.
-// Call this once per tick and cache the result.
+// Call this once per tick and cache the result. Logs when the set changes.
 let _flagAlliesCache: { tick: number; allies: Set<string> } = { tick: -1, allies: new Set() };
 
 export function getFlagAllies(): Set<string> {
@@ -89,6 +89,19 @@ export function getFlagAllies(): Set<string> {
             if (username) allies.add(username);
         }
     }
+
+    // Log when the flag-discovered ally set changes.
+    const prev = _flagAlliesCache.allies;
+    const prevArr = Array.from(prev).sort();
+    const currArr = Array.from(allies).sort();
+    if (prevArr.join(',') !== currArr.join(',')) {
+        if (allies.size > 0) {
+            console.log(`[Alliance] Flag allies: ${currArr.join(', ')}`);
+        } else if (prev.size > 0) {
+            console.log('[Alliance] Flag allies cleared (no ally: flags found)');
+        }
+    }
+
     _flagAlliesCache = { tick: Game.time, allies };
     return allies;
 }
