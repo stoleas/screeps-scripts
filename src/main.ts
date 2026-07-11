@@ -16,6 +16,10 @@ import { roomPlanner } from './roomPlanner';
 import { SporeCrawler } from './hiveClusters/sporeCrawler';
 import { LogisticsNetwork } from './logistics/LogisticsNetwork';
 import { visualizer } from './visualizer';
+import { CombatOverlord } from './overlords/combatOverlord';
+import { CombatIntel } from './intel/CombatIntel';
+import { ProfilerOutput } from './profiler/Profiler';
+import { StatsCollector } from './stats/StatsCollector';
 
 export const loop = (): void => {
     // Memory management: init, CPU bucket gate, garbage collection.
@@ -54,6 +58,9 @@ export const loop = (): void => {
 
     // Terminal network: ship energy to allies under siege or in deficit.
     terminalNetwork.run();
+
+    // Scan visible rooms for intel (cheap — only rooms we already see).
+    CombatIntel.scanVisibleRooms();
 
     // Build colony objects (one per owned room) and tag creeps.
     const colonies: Colony[] = [];
@@ -100,6 +107,7 @@ export const loop = (): void => {
         const overlords: Overlord[] = [
             new HarvestOverlord(colony),
             new HaulerOverlord(colony, logistics),
+            new CombatOverlord(colony),  // defensive
         ];
         // Upgrade and build overlords are non-essential when CPU is low.
         if (!PRODUCTION.isCpuWarning()) {
@@ -133,4 +141,38 @@ export const loop = (): void => {
         // RoomVisual dashboard (client-side rendering, near-zero server CPU).
         visualizer.run(colony.room);
     }
+
+    // Offensive combat: scan for attack:<roomName> flags and spawn
+    // remote CombatOverlords for each. Uses the first colony as the
+    // spawning base (brawlers spawn there and march to the target).
+    if (colonies.length > 0) {
+        const spawnColony = colonies[0];
+        const offensiveOverlords: CombatOverlord[] = [];
+        for (const flagName in Game.flags) {
+            if (!flagName.startsWith('attack:')) continue;
+            const targetRoom = flagName.slice('attack:'.length);
+            // Only create if we have vision of the target room (CombatPlanner
+            // needs room data to evaluate). If no vision, CombatOverlord.init
+            // will skip (targetRoom returns null).
+            const offensiveOverlord = new CombatOverlord(spawnColony, targetRoom);
+            offensiveOverlords.push(offensiveOverlord);
+        }
+        if (offensiveOverlords.length > 0) {
+            const hatchery = new Hatchery(spawnColony);
+            for (const overlord of offensiveOverlords) {
+                overlord.refresh();
+                overlord.init(hatchery);
+            }
+            hatchery.run();
+            for (const overlord of offensiveOverlords) {
+                overlord.run();
+            }
+        }
+    }
+
+    // Profiler: auto-dump every 100 ticks when enabled (no-op when disabled).
+    ProfilerOutput.autoDump();
+
+    // Collect metrics for external Grafana pipeline. Runs every 10 ticks.
+    StatsCollector.collect();
 };

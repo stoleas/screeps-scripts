@@ -39,7 +39,21 @@ interface Memory {
     stats?: any;
 }
 
-// Augment RoomMemory with optional intel field used by Mem.clean().
+// Augment RoomMemory with optional intel field used by CombatIntel.
 interface RoomMemory {
-    intel?: { tick: number };
+    intel?: {
+        // Slow fields (structural, retained 5000 ticks)
+        tick: number;               // lastScan for slow fields
+        owner?: string;
+        rcl?: number;
+        sourceCount?: number;
+        hasStorage?: boolean;
+        // Fast fields (tactical, expired at 1000 ticks)
+        fastTick?: number;          // lastScan for fast fields
+        hostileCount?: number;
+        dangerScore?: number;
+        hasTowerThreat?: boolean;
+        hasHealers?: boolean;
+        hasRanged?: boolean;
+    };
 }
