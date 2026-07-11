@@ -47,26 +47,36 @@ export const roomPlanner = {
         if (!room.controller) return false;
         const rcl = room.controller.level;
 
-        for (const { layout, flagColor } of LAYOUTS) {
+        // Find existing spawns in the room. If a spawn already exists and no
+        // placement flag is set, we snap the hatchery layout to the existing
+        // spawn position so extensions and containers are placed relative to
+        // the actual spawn rather than the default (25,24). This keeps the
+        // planner backwards-compatible with rooms that were already seeded
+        // with a spawn at an arbitrary position.
+        const spawns = room.find(FIND_MY_SPAWNS);
+        const firstSpawnPos = spawns.length > 0 ? spawns[0].pos : null;
+
+        for (const { name, layout, flagColor } of LAYOUTS) {
             const rclData = (layout as any)[rcl] as RCLLayout | undefined;
             if (!rclData) continue;
 
-            // Determine the placement anchor for this component.
-            // If a placement flag exists, translate from the layout's default
-            // anchor to the flag position. Otherwise, use the layout's anchor
-            // directly (coordinates are already relative to room center 25,25).
             const defaultAnchor = layout.data.anchor;
             const flag = findPlacementFlag(room, flagColor);
 
-            // The translation offset: how far to shift from the layout's
-            // default anchor to the desired placement position.
+            // Determine the translation offset for this component.
             let dx: number;
             let dy: number;
 
             if (flag) {
-                // Translate from layout anchor to flag position.
+                // Placement flag overrides everything.
                 dx = flag.pos.x - defaultAnchor.x;
                 dy = flag.pos.y - defaultAnchor.y;
+            } else if (name === 'hatchery' && firstSpawnPos) {
+                // Backwards-compat: snap hatchery to existing spawn.
+                // The hatchery layout's first spawn is at its anchor (25,24).
+                // We translate so that (25,24) lands on the actual spawn.
+                dx = firstSpawnPos.x - defaultAnchor.x;
+                dy = firstSpawnPos.y - defaultAnchor.y;
             } else {
                 // Default: translate from layout anchor to room center (25,25).
                 dx = 25 - defaultAnchor.x;
@@ -90,7 +100,7 @@ export const roomPlanner = {
 
                     const result = room.createConstructionSite(x, y, structureType as BuildableStructureConstant);
                     if (result === OK) {
-                        const source = flag ? 'flag' : 'default';
+                        const source = flag ? 'flag' : (name === 'hatchery' && firstSpawnPos) ? 'spawn' : 'default';
                         console.log(`[RoomPlanner] Placing ${structureType} at (${x},${y}) [${source}]`);
                         return true;  // One site per tick per room.
                     }
