@@ -139,3 +139,80 @@ export function isFriend(username: string, visibleRooms?: Room[]): boolean {
     }
     return false;
 }
+
+// --- Auto-flag placement ---------------------------------------------
+// Automatically create ally:<username>@<roomName> flags so the user doesn't
+// have to type room names manually. Two cases:
+//   1. In owned rooms: flag every ally from the static list.
+//   2. In visible rooms where an ally has creeps/structures: flag that ally.
+// Flags are placed at the room's controller position (a stable, visible spot).
+// Throttled to avoid CPU waste — flags persist, so we only need periodic checks.
+
+const AUTOFLAG_INTERVAL = 100; // every ~5 minutes
+
+export function autoFlagAllies(colonies: Room[], visibleRooms: Room[]): void {
+    if (Game.time % AUTOFLAG_INTERVAL !== 0) return;
+
+    const prefix = ALLIANCE.flagPrefix;
+
+    // Build a set of existing ally flag keys for quick lookup.
+    // Key format: "ally:<username>@<roomName>"
+    const existing = new Set<string>();
+    for (const flagName in Game.flags) {
+        if (flagName.startsWith(prefix)) {
+            existing.add(flagName);
+        }
+    }
+
+    const roomsToCheck = new Set<Room>();
+
+    // Case 1: Owned rooms — flag every static-list ally.
+    for (const room of colonies) {
+        roomsToCheck.add(room);
+    }
+
+    // Case 2: Visible rooms where an ally has creeps or structures.
+    for (const room of visibleRooms) {
+        if (room.controller && room.controller.my) continue; // already in colonies
+        const hasAllyPresence = room.find(FIND_HOSTILE_CREEPS).some(c =>
+            ALLIANCE.allies.includes(c.owner.username)
+        ) || room.find(FIND_HOSTILE_STRUCTURES).some(s =>
+            s.owner && ALLIANCE.allies.includes(s.owner.username)
+        );
+        if (hasAllyPresence) {
+            roomsToCheck.add(room);
+        }
+    }
+
+    for (const room of roomsToCheck) {
+        // For owned rooms, flag all static allies.
+        // For remote rooms, only flag allies that actually have presence.
+        const isOwned = room.controller && room.controller.my;
+        const alliesToFlag = isOwned ? ALLIANCE.allies :
+            room.find(FIND_HOSTILE_CREEPS)
+                .map(c => c.owner.username)
+                .concat(room.find(FIND_HOSTILE_STRUCTURES)
+                    .map(s => s.owner ? s.owner.username : '')
+                    .filter(u => ALLIANCE.allies.includes(u)));
+
+        const uniqueAllies = Array.from(new Set(alliesToFlag));
+
+        for (const username of uniqueAllies) {
+            const flagName = `${prefix}${username}@${room.name}`;
+            if (existing.has(flagName)) continue;
+
+            // Place flag at controller (or center of room if no controller).
+            const pos = room.controller ? room.controller.pos : new RoomPosition(25, 25, room.name);
+            const result = pos.createFlag(flagName, COLOR_WHITE, COLOR_BLUE);
+            // createFlag returns the flag name (string) on success, or an
+            // error code (number) on failure. ERR_NAME_EXISTS (-3) means
+            // the flag already exists — that's fine, skip silently.
+            if (typeof result === 'string') {
+                console.log(`[Alliance] Auto-placed flag ${flagName}`);
+                existing.add(flagName);
+            }
+            // ERR_NAME_EXISTS (-3) means the flag is already there — fine.
+            // Other errors (e.g. ERR_FULL at 10,000 flags) we just skip.
+        }
+    }
+}

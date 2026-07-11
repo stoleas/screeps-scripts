@@ -2,7 +2,7 @@
 
 import { Mem } from './memory';
 import { Colony } from './colony';
-import { ALLIANCE, getFlagAllies } from './alliance';
+import { ALLIANCE, getFlagAllies, autoFlagAllies } from './alliance';
 import { comms } from './comms';
 import { terminalNetwork } from './terminal';
 import { PRODUCTION } from './production';
@@ -161,6 +161,13 @@ export const loop = (): void => {
         // RoomVisual dashboard (client-side rendering, near-zero server CPU).
         visualizer.run(colony.room);
     }
+
+    // Auto-place ally:<username>@<roomName> flags in owned rooms and rooms
+    // where allies have creeps/structures. Throttled to every 100 ticks.
+    autoFlagAllies(
+        colonies.map(c => c.room),
+        Object.values(Game.rooms)
+    );
 
     // Offensive combat: scan for attack:<roomName> flags and spawn
     // remote CombatOverlords for each. Uses the first colony as the
