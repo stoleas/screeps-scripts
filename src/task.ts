@@ -93,3 +93,58 @@ export abstract class Task {
         return null;
     }
 }
+
+// =============================================================================
+// Phase 1.5: Task Stuck Recovery
+// =============================================================================
+//
+// Per-tick helper for role files: given the result code returned by
+// `task.run(creep)` and the current age of the task, decide whether the
+// role should clear `creep.memory.task` so the next `run()` re-assigns.
+//
+// Background: roles currently check only `result === OK || result === ERR_INVALID_TARGET`.
+// Error codes that escape the task layer unmapped (ERR_NOT_FOUND, ERR_INVALID_ARGS,
+// ERR_NO_BODYPART, ERR_RCL_NOT_ENOUGH) used to leave the creep looping on a broken
+// task forever — observed as a 30-min dead zone in upgrader stalls.
+//
+// Escalation model: in-tick reactive → 15-min cron SRE → engineer. This helper
+// is the in-tick reactive layer. The 50-tick timeout is the final safety net
+// for any error code we didn't classify (transient codes that never resolve).
+
+/**
+ * Maximum ticks a task can remain active before it is force-cleared.
+ * Safety net for error codes that aren't explicitly classified below.
+ */
+export const TASK_TIMEOUT = 50;
+
+/**
+ * Error codes that indicate the task is permanently broken and the role
+ * should drop it from `creep.memory.task` immediately so the next tick
+ * can re-assign a fresh task. Validated against the Screeps API and
+ * Gemini review (3.5-flash, 2026-07-11).
+ */
+const PERMANENT_CLEAR_CODES: ReadonlySet<number> = new Set<number>([
+    OK,                    // Task succeeded
+    ERR_INVALID_TARGET,    // Target ref gone, path impossible, or task-layer-mapped depletion
+    ERR_NOT_FOUND,         // Target doesn't exist
+    ERR_INVALID_ARGS,      // Bad task parameters
+    ERR_NO_BODYPART,       // Creep lost the required body part
+    ERR_RCL_NOT_ENOUGH,    // Room controller level insufficient
+    // NOTE: Gemini plan referenced ERR_GENTLEMAN (Safe Mode), but that constant
+    // is NOT defined in @types/screeps (verified 2026-07-11 in DefinitelyTyped
+    // master). Omitted from the clear list — if a Safe Mode code ever surfaces
+    // unmapped, the 50-tick TASK_TIMEOUT safety net will clear it instead.
+]);
+
+/**
+ * Decide whether a role should clear its current task this tick.
+ *
+ * @param result The return value of `task.run(creep)`.
+ * @param age Number of ticks the task has been active (`Game.time - task.tick`).
+ * @returns `true` if the role should set `creep.memory.task = null`.
+ */
+export function shouldClearTask(result: number, age: number): boolean {
+    if (PERMANENT_CLEAR_CODES.has(result)) return true;
+    if (age > TASK_TIMEOUT) return true;
+    return false;
+}
