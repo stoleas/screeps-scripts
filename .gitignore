@@ -6,3 +6,4 @@ screeps.json
 
 # screeps-grafana — external metrics pipeline (self-hosted)
 metrics/
+dist_test/
