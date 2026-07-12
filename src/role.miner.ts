@@ -1,6 +1,6 @@
 'use strict';
 
-import { Task } from './task';
+import { Task, shouldClearTask } from './task';
 import { Tasks } from './tasks';
 import { cache } from './cache';
 import { EventEmitter } from './events/EventEmitter';
@@ -42,7 +42,8 @@ export const roleMiner = {
                     actor: creep.name,
                 });
             }
-            if (result === OK || result === ERR_INVALID_TARGET) {
+            const age = Game.time - task.tick;
+            if (shouldClearTask(result, age)) {
                 creep.memory.task = null;
             }
         }
