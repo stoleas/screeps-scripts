@@ -58,5 +58,16 @@ export class StatsCollector {
                 hostileCount: room.find(FIND_HOSTILE_CREEPS).length,
             });
         }
+
+        // Emit global snapshot for Dolt pipeline (CPU + GCL metrics).
+        EventEmitter.emit('GLOBAL_SNAPSHOT', {
+            cpuUsed: Game.cpu.getUsed(),
+            cpuLimit: Game.cpu.limit,
+            cpuBucket: Game.cpu.bucket,
+            gclLevel: Game.gcl.level,
+            gclProgress: Game.gcl.progress,
+            gclProgressTotal: Game.gcl.progressTotal,
+            creepCount: Object.keys(Game.creeps).length,
+        });
     }
 }
