@@ -3,6 +3,7 @@
 import { Task } from './task';
 import { Tasks } from './tasks';
 import { cache } from './cache';
+import { EventEmitter } from './events/EventEmitter';
 
 export const roleHarvester = {
     run(creep: Creep): void {
@@ -16,7 +17,27 @@ export const roleHarvester = {
         }
 
         if (task) {
+            const energyBefore = creep.store[RESOURCE_ENERGY] || 0;
             const result = task.run(creep);
+            const energyAfter = creep.store[RESOURCE_ENERGY] || 0;
+            const delta = energyAfter - energyBefore;
+            if (delta !== 0) {
+                const taskType = creep.memory.task ? creep.memory.task._type : 'unknown';
+                const sourceMap: { [type: string]: string } = {
+                    harvest: 'SOURCE',
+                    transfer: 'SPAWN',
+                    withdraw: 'STORAGE',
+                    build: 'CONSTRUCTION',
+                    upgrade: 'CONTROLLER',
+                    pickup: 'DROPPED',
+                };
+                EventEmitter.emit('ECONOMIC', {
+                    room: creep.room.name,
+                    source: sourceMap[taskType] || 'UNKNOWN',
+                    amount: delta,
+                    actor: creep.name,
+                });
+            }
             if (result === OK || result === ERR_INVALID_TARGET) {
                 creep.memory.task = null;
             }

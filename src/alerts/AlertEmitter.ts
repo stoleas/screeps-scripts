@@ -11,6 +11,8 @@
 // Memory shape:
 //   Memory.alerts = [{ type, tick, room?, severity, message }]
 
+import { EventEmitter } from '../events/EventEmitter';
+
 const MAX_ALERTS = 20;
 const CPU_BUCKET_THRESHOLD = 2000;
 
@@ -78,6 +80,13 @@ export const AlertEmitter = {
             for (const alert of newAlerts) {
                 Memory.alerts.push(alert);
                 console.log(`[Alert] ${alert.type}: ${alert.message}`);
+                // Mirror to EventEmitter for Dolt pipeline.
+                EventEmitter.emit('ALERT', {
+                    type: alert.type,
+                    room: alert.room,
+                    severity: alert.severity,
+                    message: alert.message,
+                });
             }
             // Trim oldest if over cap.
             if (Memory.alerts.length > MAX_ALERTS) {

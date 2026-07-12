@@ -7,6 +7,7 @@ import { CreepSetup } from './creepSetup';
 import { Overlord } from './overlord';
 import { Priority } from './priorities';
 import { bodyFactory } from './bodyFactory';
+import { EventEmitter } from './events/EventEmitter';
 
 interface SpawnRequest {
     overlord: Overlord;
@@ -49,6 +50,13 @@ export class Hatchery {
                 });
                 if (result === OK) {
                     console.log(`[Hatchery] Spawning ${name} for ${req.overlord.name}`);
+                    EventEmitter.emit('CREEP_BIRTH', {
+                        creepName: name,
+                        role: req.role,
+                        colony: this.colony.name,
+                        bodyParts: body,
+                        ttl: 1500,  // CREEP_LIFE_TIME
+                    });
                     this.requests.splice(j, 1);
                     break;
                 }

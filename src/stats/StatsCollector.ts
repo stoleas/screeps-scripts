@@ -4,6 +4,8 @@
 // Gated to every 10 ticks to reduce CPU overhead from Memory serialization.
 // Output format aligned with screepers/screeps-grafana (see ADR 0001).
 
+import { EventEmitter } from '../events/EventEmitter';
+
 const STATS_INTERVAL = 10;
 
 export class StatsCollector {
@@ -42,6 +44,19 @@ export class StatsCollector {
                 storageEnergy: room.storage ? room.storage.store.getUsedCapacity(RESOURCE_ENERGY) : 0,
                 terminalEnergy: room.terminal ? room.terminal.store.getUsedCapacity(RESOURCE_ENERGY) : 0,
             };
+
+            // Emit room snapshot event for Dolt pipeline.
+            EventEmitter.emit('ROOM_SNAPSHOT', {
+                room: roomName,
+                controllerLevel: room.controller.level,
+                controllerProgress: room.controller.progress,
+                energyAvailable: room.energyAvailable,
+                energyCapacity: room.energyCapacityAvailable,
+                storageEnergy: room.storage ? room.storage.store.getUsedCapacity(RESOURCE_ENERGY) : 0,
+                terminalEnergy: room.terminal ? room.terminal.store.getUsedCapacity(RESOURCE_ENERGY) : 0,
+                creepCount: Object.values(Game.creeps).filter(c => c.memory.colony === roomName).length,
+                hostileCount: room.find(FIND_HOSTILE_CREEPS).length,
+            });
         }
     }
 }

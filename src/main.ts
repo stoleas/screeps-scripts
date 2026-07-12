@@ -23,12 +23,19 @@ import { StatsCollector } from './stats/StatsCollector';
 import { ObserverOverlord } from './observer/ObserverOverlord';
 import { AlertEmitter } from './alerts/AlertEmitter';
 import { AutomationConsumer } from './automation/AutomationConsumer';
+import { CreepRegistry } from './registry/CreepRegistry';
+import { ForeignScanner } from './registry/ForeignScanner';
+import { NodeConnectivityChecker } from './registry/NodeConnectivityChecker';
+import { ActivityMonitor } from './registry/ActivityMonitor';
 
 export const loop = (): void => {
     // Memory management: init, CPU bucket gate, garbage collection.
     Mem.load();
     if (!Mem.shouldRun()) return;
     Mem.clean();
+
+    // Auto-discovery: on global reset, discover all creeps and backfill memory.
+    CreepRegistry.register();
 
     // Consume automation directives from Memory.automation (written by
     // external pipeline via Screeps REST API). Runs early so actions like
@@ -97,13 +104,8 @@ export const loop = (): void => {
         }
     }
 
-    // Tag creeps with their colony (room name) for Colony.creeps filtering.
-    for (const creepName in Game.creeps) {
-        const creep = Game.creeps[creepName];
-        if (!creep.memory.colony && creep.room.controller && creep.room.controller.my) {
-            creep.memory.colony = creep.room.name;
-        }
-    }
+    // Per-tick validation: backfill any untagged creeps.
+    CreepRegistry.validate();
 
     // Per-colony: plan containers, run SporeCrawler (towers), build LogisticsNetwork,
     // build overlords, spawn via hatchery, run overlord logic, render visualizer.
@@ -169,6 +171,14 @@ export const loop = (): void => {
         visualizer.run(colony.room);
     }
 
+    // Scan owned rooms for foreign non-ally creeps. Creates/removes attack flags
+    // for automated combat response. All foreign creeps get flags (always RED).
+    ForeignScanner.scan();
+
+    // Verify node connectivity: check that each creep type has access to its
+    // expected node type. Diagnostic-only — logs and emits events.
+    NodeConnectivityChecker.check();
+
     // Auto-place ally:<username>@<roomName> flags in owned rooms and rooms
     // where allies have creeps/structures. Throttled to every 100 ticks.
     autoFlagAllies(
@@ -213,4 +223,8 @@ export const loop = (): void => {
 
     // Collect metrics for external Grafana pipeline. Runs every 10 ticks.
     StatsCollector.collect();
+
+    // Monitor creep activity: detect stuck/idle creeps and emit alerts.
+    // Gated to every 5 ticks to save CPU.
+    ActivityMonitor.monitor();
 };

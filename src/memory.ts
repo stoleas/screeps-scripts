@@ -2,6 +2,8 @@
 
 // Memory management adapted from Overmind's Memory.ts.
 
+import { EventEmitter } from './events/EventEmitter';
+
 export const Mem = {
     BUCKET_CRITICAL: 500,
     BUCKET_CLEAR_CACHE: 4000,
@@ -25,6 +27,14 @@ export const Mem = {
         // Clean dead creep memory
         for (const name in Memory.creeps) {
             if (!(name in Game.creeps)) {
+                // Emit death event before deleting memory.
+                const creepMem = Memory.creeps[name] as any;
+                EventEmitter.emit('CREEP_DEATH', {
+                    creepName: name,
+                    role: creepMem.role || 'unknown',
+                    colony: creepMem.colony || 'unknown',
+                    age: 1500 - (creepMem._moveData?.stuckCount || 0),  // approximate
+                });
                 delete Memory.creeps[name];
                 console.log('[Mem] Clearing dead creep memory:', name);
             }

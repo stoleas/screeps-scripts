@@ -167,18 +167,20 @@ export const visualizer = {
                 counts[role] = (counts[role] || 0) + 1;
             }
         }
-        // Target counts (matches main.ts TARGETS + hauler).
+        // Dynamic targets: miner count scales with sources, builder with sites.
         const targets: { [role: string]: number } = {
+            miner: room.find(FIND_SOURCES).length,
             harvester: 2,
-            upgrader: 1,
-            builder: 1,
+            upgrader: 3,
+            builder: room.find(FIND_MY_CONSTRUCTION_SITES).length > 0 ? 1 : 0,
             hauler: 2,
+            brawler: 0,
         };
-        const roles = Object.keys(targets);
-        return roles.map(r => ({
+        const allRoles = new Set([...Object.keys(counts), ...Object.keys(targets)]);
+        return Array.from(allRoles).sort().map(r => ({
             name: r,
             current: counts[r] || 0,
-            target: targets[r],
+            target: targets[r] !== undefined ? targets[r] : 0,
         }));
     },
 };
