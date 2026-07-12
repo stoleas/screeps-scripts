@@ -6,7 +6,7 @@ import { Priority } from '../priorities';
 import { Hatchery } from '../hatchery';
 import { bodyFactory } from '../bodyFactory';
 import { LogisticsNetwork } from '../logistics/LogisticsNetwork';
-import { Task } from '../task';
+import { Task, shouldClearTask } from '../task';
 import { Tasks } from '../tasks';
 import { EventEmitter } from '../events/EventEmitter';
 
@@ -68,7 +68,8 @@ export class HaulerOverlord extends Overlord {
                         actor: creep.name,
                     });
                 }
-                if (result === OK || result === ERR_INVALID_TARGET) {
+                const age = Game.time - task.tick;
+                if (shouldClearTask(result, age)) {
                     creep.memory.task = null;
                 }
             }
