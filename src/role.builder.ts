@@ -1,12 +1,8 @@
 'use strict';
 
-import { Task } from './task';
+import { Task, shouldClearTask } from './task';
 import { Tasks } from './tasks';
 import { EventEmitter } from './events/EventEmitter';
-
-// Max ticks a task can stay active before it's considered stale.
-// Prevents creeps from getting stuck on unreachable targets or depleted sources.
-const TASK_TIMEOUT = 50;
 
 export const roleBuilder = {
     run(creep: Creep): void {
@@ -42,7 +38,7 @@ export const roleBuilder = {
                 });
             }
             const age = Game.time - task.tick;
-            if (result === OK || result === ERR_INVALID_TARGET || age > TASK_TIMEOUT) {
+            if (shouldClearTask(result, age)) {
                 creep.memory.task = null;
             }
         }
