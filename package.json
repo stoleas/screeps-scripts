@@ -6,14 +6,16 @@
   "scripts": {
     "build": "tsc -p . --noEmit",
     "compile": "rollup -c",
-    "clean": "rm -rf dist"
+    "test": "tsc -p tsconfig.test.json && node --import ./test/setup.js --test dist_test/test/**/*.test.js",
+    "clean": "rm -rf dist dist_test"
   },
   "devDependencies": {
-    "@types/lodash": "^3.10.1",
-    "@types/screeps": "^3.0.0",
     "@rollup/plugin-commonjs": "^25.0.0",
     "@rollup/plugin-node-resolve": "^15.0.0",
     "@rollup/plugin-typescript": "^12.0.0",
+    "@types/lodash": "^3.10.1",
+    "@types/node": "^18.19.130",
+    "@types/screeps": "^3.0.0",
     "rollup": "^3.0.0",
     "tslib": "^2.6.0",
     "typescript": "^4.9.0"

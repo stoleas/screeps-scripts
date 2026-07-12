@@ -41,6 +41,12 @@ interface Memory {
     nextExpectedRoom?: string;
     alerts?: AlertEntry[];
     automation?: AutomationEntry[];
+    events?: any[];           // GameEvent FIFO (capped at 500)
+    _eventSeq?: number;       // sequential ID counter for events
+}
+
+interface FlagMemory {
+    clearSince?: number;
 }
 
 interface AlertEntry {

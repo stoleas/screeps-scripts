@@ -79,6 +79,23 @@ const PROFILES: { [role: string]: CreepSetup } = {
     }),
 };
 
+// Body-signature → role mapping for purpose inference.
+// Ordered by specificity — first match wins.
+const BODY_SIGNATURES: { role: string; test: (parts: { [key: string]: number }) => boolean }[] = [
+    // Miner: WORK-heavy, NO CARRY (static, drops on container)
+    { role: 'miner',     test: p => (p[WORK] || 0) >= 3 && (p[CARRY] || 0) === 0 },
+    // Hauler: CARRY-heavy, no or minimal WORK
+    { role: 'hauler',    test: p => (p[CARRY] || 0) >= 2 && (p[WORK] || 0) === 0 },
+    // Brawler: has ATTACK or RANGED_ATTACK
+    { role: 'brawler',   test: p => (p[ATTACK] || 0) > 0 || (p[RANGED_ATTACK] || 0) > 0 },
+    // Healer: has HEAL
+    { role: 'healer',    test: p => (p[HEAL] || 0) > 0 },
+    // Harvester: mixed WORK + CARRY (also matches upgrader/builder — ambiguous, overlord disambiguates)
+    { role: 'harvester', test: p => (p[WORK] || 0) > 0 && (p[CARRY] || 0) > 0 },
+    // Claimer: has CLAIM
+    { role: 'claimer',   test: p => (p[CLAIM] || 0) > 0 },
+];
+
 export const bodyFactory = {
     COSTS: BODYPART_COST,
 
@@ -101,5 +118,17 @@ export const bodyFactory = {
             }
         }
         return body;
+    },
+
+    inferRole(body: BodyPartDefinition[] | BodyPartConstant[]): string {
+        const parts: { [key: string]: number } = {};
+        for (const part of body) {
+            const type = typeof part === 'string' ? part : (part as BodyPartDefinition).type;
+            parts[type] = (parts[type] || 0) + 1;
+        }
+        for (const sig of BODY_SIGNATURES) {
+            if (sig.test(parts)) return sig.role;
+        }
+        return 'unknown';
     },
 };
